@@ -4,9 +4,9 @@
 
 | File | Trigger | What it does |
 |---|---|---|
-| `.github/workflows/ci.yml` | PRs into `main`/`develop`, pushes to them, manual | `npm ci`, ESLint, OpenAPI lint, typecheck, Vitest, build |
-| `.github/workflows/deploy.yml` | CI succeeded on a push to `develop` or `main`, or manual | Optional Supabase migrations, then Vercel build and deploy, then `/health` smoke test |
-| `.github/dependabot.yml` | Weekly / monthly | Dependency and Actions update PRs into `develop` |
+| `.github/workflows/ci.yml` | PRs into `main`/`development`, pushes to them, manual | `npm ci`, ESLint, OpenAPI lint, typecheck, Vitest, build |
+| `.github/workflows/deploy.yml` | CI succeeded on a push to `development` or `main`, or manual | Optional Supabase migrations, then Vercel build and deploy, then `/health` smoke test |
+| `.github/dependabot.yml` | Weekly / monthly | Dependency and Actions update PRs into `development` |
 
 CI uses the in-memory store and stubbed Gemini, so it needs **no secrets**.
 
@@ -17,7 +17,7 @@ CI still runs and nothing is deployed.
 
 | Branch | GitHub Environment | Vercel target |
 |---|---|---|
-| `develop` | `staging` | Preview deployment (optionally aliased to a stable URL) |
+| `development` | `staging` | Preview deployment (optionally aliased to a stable URL) |
 | `main` | `production` | Production (`--prod`) |
 
 ## One-time setup
@@ -48,7 +48,7 @@ CI still runs and nothing is deployed.
    | `MIGRATIONS_ENABLED` | `true` to run `supabase db push` before each deploy (set per environment) |
    | `VERCEL_STAGING_ALIAS` | Optional, e.g. `laag-ta-bai-api-staging.vercel.app` (in `staging`) |
 
-5. Push to `develop` and watch **Actions → Deploy**.
+5. Push to `development` and watch **Actions → Deploy**.
 
 ## Secrets policy
 

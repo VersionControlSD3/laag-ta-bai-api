@@ -5,20 +5,20 @@
 | Branch | Purpose | Deploys to |
 |---|---|---|
 | `main` | Production. Always releasable | Production (after approval) |
-| `develop` | Integration and testing | Staging |
-| `feature/<short-name>` | New work, branched from `develop` | – |
-| `fix/<short-name>` | Bug fixes, branched from `develop` | – |
+| `development` | Integration and testing | Staging |
+| `feature/<short-name>` | New work, branched from `development` | – |
+| `fix/<short-name>` | Bug fixes, branched from `development` | – |
 | `hotfix/<short-name>` | Urgent production fix, branched from `main` | – |
 
 ## Flow
 
-1. `git switch develop && git pull`, then `git switch -c feature/scan-retake-hints`.
+1. `git switch development && git pull`, then `git switch -c feature/scan-retake-hints`.
 2. Commit in small steps using [Conventional Commits](https://www.conventionalcommits.org/)
    (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, `refactor:`).
-3. Open a PR into `develop`. CI must pass and one teammate must approve. Squash-merge.
-4. To release, open a PR from `develop` into `main`. After merge, the production deploy
+3. Open a PR into `development`. CI must pass and one teammate must approve. Squash-merge.
+4. To release, open a PR from `development` into `main`. After merge, the production deploy
    waits for approval in the `production` environment.
-5. Hotfixes: PR from `hotfix/*` into `main`, then merge `main` back into `develop`.
+5. Hotfixes: PR from `hotfix/*` into `main`, then merge `main` back into `development`.
 
 ## Recommended GitHub settings
 
@@ -31,14 +31,14 @@ Settings → Branches → Add branch ruleset (or classic protection rule).
 - Block force pushes and deletions
 - Restrict who can push (no direct pushes), include administrators
 
-**`develop`**
+**`development`**
 - Require a pull request before merging (1 approval)
 - Require status check **`Lint, test and build`**
 - Block force pushes and deletions
 
 **Repository**
 - Settings → General: allow squash merging only; enable "Automatically delete head branches".
-- Settings → General: set the default branch to `develop` if you want PRs to target it by
+- Settings → General: set the default branch to `development` if you want PRs to target it by
   default. Keep `main` as default if you prefer; the Deploy workflow file must exist on the
   default branch for `workflow_run` triggers to fire.
 - Settings → Environments: create `staging` and `production`. On `production`, add
