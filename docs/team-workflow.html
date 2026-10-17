@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laag ta bAI – Team Git Workflow</title>
+<style>
+  :root {
+    --maroon: #2b0e0e; --maroon-2: #571717; --gold: #ffc107; --amber: #e69138; --coral: #ff5e3e; --cream: #fffdf4;
+    --bg: #fffdf4; --fg: #2a2220; --muted: #6b5f5a; --card: #ffffff; --line: #eadfcc; --code: #f6eedb;
+    --feat: #1565c0; --dev: #e69138; --main: #2e7d32; --hot: #c62828;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1d0909; --fg: #f4ece4; --muted: #c9b8b0; --card: #2b0e0e; --line: #4a2222; --code: #3a1515;
+      --feat: #64b5f6; --dev: #ffb74d; --main: #81c784; --hot: #ef9a9a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); }
+  header { background: linear-gradient(135deg, var(--maroon), var(--maroon-2)); color: var(--cream); padding: 32px 20px 26px; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  header h1 { margin: 0; color: var(--gold); font-size: clamp(26px, 5vw, 38px); }
+  header p { margin: 6px 0 0; opacity: .85; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  nav.toc a { color: var(--cream); text-decoration: none; background: rgb(255 255 255 / .12); border: 1px solid rgb(255 255 255 / .2); border-radius: 999px; padding: 4px 12px; font-size: 14px; }
+  main { padding: 24px 20px 64px; }
+  h2 { font-size: 24px; margin: 40px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--line); scroll-margin-top: 12px; }
+  h2:first-child { margin-top: 0; }
+  h3 { font-size: 18px; margin: 22px 0 8px; color: var(--amber); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13.5px; }
+  code { background: var(--code); padding: 1px 6px; border-radius: 6px; }
+  pre { background: var(--code); padding: 14px 16px; border-radius: 12px; overflow-x: auto; line-height: 1.55; margin: 8px 0; }
+  pre code { background: none; padding: 0; }
+  pre .c { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 10px 0; }
+  .table { overflow-x: auto; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--code); }
+  .callout { border-left: 4px solid var(--gold); background: var(--code); padding: 12px 16px; border-radius: 0 12px 12px 0; margin: 14px 0; }
+  .ok { border-color: var(--main); }
+  .diagram { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px; overflow-x: auto; }
+  .diagram svg { display: block; min-width: 860px; width: 100%; height: auto; }
+  svg text { fill: var(--fg); font: 600 13px system-ui, sans-serif; }
+  svg .small { font-size: 11.5px; font-weight: 500; fill: var(--muted); }
+  svg .lane-label { font-size: 13px; font-weight: 800; }
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+  .steps > li { position: relative; padding: 4px 0 18px 52px; border-left: 2px solid var(--line); margin-left: 18px; }
+  .steps > li:last-child { border-left-color: transparent; }
+  .steps > li::before { counter-increment: step; content: counter(step); position: absolute; left: -19px; top: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--gold); color: var(--maroon); font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .steps h3 { margin-top: 4px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+  .card b { display: block; margin-bottom: 4px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 16px; margin: 8px 0; }
+  summary { cursor: pointer; font-weight: 700; min-height: 32px; }
+  footer { color: var(--muted); font-size: 13px; text-align: center; padding: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Team Git Workflow</h1>
+    <p>How the Laag ta bAI team branches, pushes, opens pull requests, and promotes code from local to staging to production. This applies to both <code>laag-ta-bai-frontend</code> and <code>laag-ta-bai-api</code>.</p>
+    <nav class="toc" aria-label="Sections">
+      <a href="#flow">Flow</a><a href="#envs">Environments</a><a href="#daily">Daily steps</a><a href="#pr">Pull requests</a>
+      <a href="#release">Release &amp; hotfix</a><a href="#cross">Frontend + API changes</a><a href="#roles">Roles</a><a href="#admin">Admin setup</a><a href="#faq">FAQ</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<h2 id="flow">The flow at a glance</h2>
+<p><strong>Yes, there is a staging environment.</strong> The <code>development</code> branch <em>is</em> staging. Every merge into <code>development</code> auto-deploys to the staging site, where the team and QA test it. <code>main</code> is production and only changes through a release PR plus a manual approval. Nobody pushes directly to <code>development</code> or <code>main</code>.</p>
+
+<div class="diagram" role="img" aria-label="Flow diagram: feature branches merge into development through pull requests, development deploys to staging, a release pull request merges development into main, and main deploys to production after approval. Hotfix branches go from main back into main and development.">
+<svg viewBox="0 0 1000 430" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/>
+    </marker>
+  </defs>
+  <!-- lane labels -->
+  <text class="lane-label" x="14" y="64" style="fill:var(--feat)">feature/*</text>
+  <text class="lane-label" x="14" y="168" style="fill:var(--dev)">development</text>
+  <text class="lane-label" x="14" y="272" style="fill:var(--main)">main</text>
+  <text class="lane-label" x="14" y="376" style="fill:var(--hot)">hotfix/*</text>
+  <!-- lanes -->
+  <line x1="112" y1="164" x2="985" y2="164" stroke="var(--dev)" stroke-width="5" stroke-linecap="round"/>
+  <line x1="100" y1="268" x2="985" y2="268" stroke="var(--main)" stroke-width="5" stroke-linecap="round"/>
+  <!-- feature 1 -->
+  <path d="M140,164 C160,60 170,60 200,60 L330,60 C360,60 370,100 390,160" fill="none" stroke="var(--feat)" stroke-width="3" marker-end="url(#ah)"/>
+  <circle cx="230" cy="60" r="8" fill="var(--feat)"/><circle cx="290" cy="60" r="8" fill="var(--feat)"/>
+  <text x="200" y="38">1. branch + commits</text>
+  <text x="196" y="102" class="small">2. push, open PR</text>
+  <text x="196" y="118" class="small">CI runs · review</text>
+  <circle cx="392" cy="164" r="11" fill="var(--dev)"/>
+  <text x="270" y="198">3. squash-merge</text>
+  <!-- staging deploy -->
+  <rect x="432" y="190" width="150" height="44" rx="12" fill="none" stroke="var(--dev)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="446" y="210">4. auto-deploy</text>
+  <text x="446" y="226" class="small">to STAGING · QA tests</text>
+  <path d="M402,172 L440,192" fill="none" stroke="var(--dev)" stroke-width="2" marker-end="url(#ah)"/>
+  <!-- feature 2 -->
+  <path d="M430,164 C450,80 460,80 490,80 L560,80 C590,80 600,110 616,160" fill="none" stroke="var(--feat)" stroke-width="3" marker-end="url(#ah)"/>
+  <circle cx="525" cy="80" r="8" fill="var(--feat)"/>
+  <text x="470" y="68" class="small">more features…</text>
+  <circle cx="618" cy="164" r="11" fill="var(--dev)"/>
+  <!-- release -->
+  <path d="M640,170 C660,250 670,262 700,266" fill="none" stroke="var(--main)" stroke-width="3" marker-end="url(#ah)"/>
+  <text x="452" y="256">5. release PR</text>
+  <text x="540" y="294" class="small">development → main</text>
+  <circle cx="712" cy="268" r="11" fill="var(--main)"/>
+  <rect x="730" y="196" width="180" height="44" rx="12" fill="none" stroke="var(--main)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="742" y="216">6. approve → PRODUCTION</text>
+  <text x="742" y="232" class="small">reviewer approves in Actions</text>
+  <path d="M718,258 L736,242" fill="none" stroke="var(--main)" stroke-width="2" marker-end="url(#ah)"/>
+  <!-- hotfix -->
+  <path d="M790,268 C800,360 810,372 840,372 L880,372 C905,372 912,330 918,276" fill="none" stroke="var(--hot)" stroke-width="3" marker-end="url(#ah)"/>
+  <circle cx="860" cy="372" r="8" fill="var(--hot)"/>
+  <circle cx="920" cy="268" r="11" fill="var(--main)"/>
+  <path d="M928,260 C940,220 950,200 958,172" fill="none" stroke="var(--hot)" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#ah)"/>
+  <circle cx="960" cy="164" r="11" fill="var(--dev)"/>
+  <text x="530" y="404" class="small">urgent fix: branch from main, PR into main, then merge main back into development</text>
+</svg>
+</div>
+
+<h2 id="envs">Environments</h2>
+<div class="table"><table>
+<tr><th>Environment</th><th>Comes from</th><th>Who uses it</th><th>Data and keys</th><th>How it updates</th></tr>
+<tr><td><strong>Local</strong> (development)</td><td>Your feature branch on your laptop</td><td>The developer</td><td>API memory mode with seed data and stub AI, or the local Supabase stack (<code>npm run db:start</code>)</td><td><code>npm run dev</code></td></tr>
+<tr><td><strong>PR check</strong></td><td>Every pull request</td><td>Reviewers</td><td>No secrets. Tests use the memory store and mocks</td><td>GitHub Actions <strong>CI</strong> runs automatically</td></tr>
+<tr><td><strong>Staging</strong></td><td><code>development</code></td><td>Whole team, QA, demo to adviser</td><td>Staging Supabase project and staging Gemini key (never production's)</td><td>Auto-deploys after CI passes on every merge into <code>development</code></td></tr>
+<tr><td><strong>Production</strong></td><td><code>main</code></td><td>Real travelers</td><td>Production Supabase project and Gemini key</td><td>After a release PR merges <strong>and</strong> a reviewer approves the deploy</td></tr>
+</table></div>
+<div class="callout">Deploys stay switched off until the Vercel projects and secrets are set up (see <a href="#admin">Admin setup</a>). Until then, CI still runs on every PR and push. Staging and production simply aren't published yet.</div>
+
+<h2 id="daily">Daily steps for every developer</h2>
+<ol class="steps">
+  <li>
+    <h3>One-time: clone and install</h3>
+<pre><code>git clone https://github.com/VersionControlSD3/laag-ta-bai-api.git
+git clone https://github.com/VersionControlSD3/laag-ta-bai-frontend.git
+
+cd laag-ta-bai-api      &amp;&amp; npm ci &amp;&amp; cp .env.example .env
+cd ../laag-ta-bai-frontend &amp;&amp; npm ci &amp;&amp; cp .env.example .env.local</code></pre>
+    <p>Ask the team lead for org access first. You need write access to push branches. Never commit <code>.env</code> files.</p>
+  </li>
+  <li>
+    <h3>Start from the latest <code>development</code></h3>
+<pre><code>git switch development
+git pull origin development
+git switch -c feature/scan-retake-hints     <span class="c"># or fix/chat-scroll, docs/setup-guide</span></code></pre>
+    <p>Name branches <code>feature/…</code>, <code>fix/…</code>, <code>docs/…</code> or <code>chore/…</code>, followed by a few words. Use one branch per task, ideally linked to a ClickUp task.</p>
+  </li>
+  <li>
+    <h3>Work, run the app, commit in small steps</h3>
+<pre><code>npm run dev                                   <span class="c"># run it (API on :3000, frontend on :5173)</span>
+git add -A
+git commit -m "feat(scan): show retake tips on low confidence"</code></pre>
+    <p>Use <a href="https://www.conventionalcommits.org/">Conventional Commits</a>: <code>feat:</code>, <code>fix:</code>, <code>docs:</code>, <code>test:</code>, <code>refactor:</code>, <code>chore:</code>.</p>
+  </li>
+  <li>
+    <h3>Check locally before pushing</h3>
+<pre><code><span class="c"># frontend</span>
+npm run lint &amp;&amp; npm test &amp;&amp; npm run build
+<span class="c"># api</span>
+npm run lint &amp;&amp; npm run lint:openapi &amp;&amp; npm run typecheck &amp;&amp; npm test &amp;&amp; npm run build</code></pre>
+    <p>These are the same steps CI runs. If they pass on your machine, they will almost always pass on GitHub.</p>
+  </li>
+  <li>
+    <h3>Push your branch</h3>
+<pre><code>git push -u origin feature/scan-retake-hints</code></pre>
+    <p>GitHub prints a link to open a pull request.</p>
+  </li>
+  <li>
+    <h3>Open a pull request into <code>development</code></h3>
+    <p>On GitHub, set <strong>base: development</strong> ← compare: your branch. Fill in the PR template, add screenshots for UI changes, and request a reviewer. With the GitHub CLI:</p>
+<pre><code>gh pr create --base development --fill --reviewer &lt;teammate&gt;</code></pre>
+  </li>
+  <li>
+    <h3>CI and review</h3>
+    <p>The <strong>"Lint, test and build"</strong> check must be green and one teammate must approve. If you get review comments, push more commits to the same branch and the PR updates itself.</p>
+  </li>
+  <li>
+    <h3>Squash-merge, then clean up</h3>
+<pre><code><span class="c"># after merging on GitHub (the branch is auto-deleted there)</span>
+git switch development &amp;&amp; git pull origin development
+git branch -d feature/scan-retake-hints</code></pre>
+    <p>Your change is now on <strong>staging</strong> once the deploy finishes. Test it there.</p>
+  </li>
+</ol>
+
+<h2 id="pr">Pull request rules</h2>
+<div class="cards">
+  <div class="card"><b>Target</b>Feature and fix PRs go into <code>development</code>. Only release and hotfix PRs go into <code>main</code>.</div>
+  <div class="card"><b>Size</b>One task per PR. Keep it small enough to review in about 15 minutes. Split big features.</div>
+  <div class="card"><b>Checks</b>CI must pass. A failing check blocks the merge (SPMP 3.2).</div>
+  <div class="card"><b>Review</b>1 approval for <code>development</code>, 1 approval plus a QA sign-off for releases to <code>main</code>.</div>
+  <div class="card"><b>Merge style</b>Squash-merge, so <code>development</code> keeps one clean commit per PR.</div>
+  <div class="card"><b>Never</b>Commit secrets or <code>.env</code> files, force-push to shared branches, or push directly to <code>development</code>/<code>main</code>.</div>
+</div>
+<h3>Keeping your branch up to date</h3>
+<p>If <code>development</code> moved on while you were working, or GitHub says there are conflicts:</p>
+<pre><code>git fetch origin
+git merge origin/development          <span class="c"># fix any conflicts, then:</span>
+git add -A &amp;&amp; git commit
+git push</code></pre>
+
+<h2 id="release">Release to production &amp; hotfixes</h2>
+<h3>Regular release (e.g. end of a sprint)</h3>
+<ol>
+  <li>QA confirms that staging works (scan, chat, profile, plus the features in the release).</li>
+  <li>Open a PR from <strong><code>development</code> → <code>main</code></strong> titled like <code>release: sprint 3</code>, and list what is included.</li>
+  <li>CI passes, the PM or lead approves, then <strong>merge with a merge commit</strong> (not squash), so <code>main</code> and <code>development</code> stay in sync.</li>
+  <li>The Deploy workflow starts and waits. A required reviewer opens <em>Actions → Deploy → Review deployments → Approve</em>.</li>
+  <li>Production is live. If something breaks, roll back in Vercel → Deployments → <em>Promote</em> the previous one, then fix forward through a PR.</li>
+</ol>
+<h3>Hotfix (production is broken now)</h3>
+<pre><code>git switch main &amp;&amp; git pull origin main
+git switch -c hotfix/login-crash
+<span class="c"># fix, commit, push</span>
+gh pr create --base main --fill            <span class="c"># review, merge, approve the deploy</span>
+<span class="c"># then bring the fix back to development:</span>
+git switch development &amp;&amp; git pull origin development &amp;&amp; git merge origin/main &amp;&amp; git push</code></pre>
+
+<h2 id="cross">Changes that touch both frontend and API</h2>
+<p>The API's <code>openapi.yaml</code> is the contract. When a feature needs a new or changed endpoint:</p>
+<ol>
+  <li><strong>API first.</strong> Open a PR in <code>laag-ta-bai-api</code> that changes the route and <code>openapi.yaml</code> together. Prefer <em>adding</em> fields or routes over changing existing ones.</li>
+  <li><strong>Frontend second.</strong> Open a PR in <code>laag-ta-bai-frontend</code> that updates <code>src/api/types.ts</code> and the UI. Link the API PR in the description.</li>
+  <li>Merge the API PR first, so staging has the endpoint before the UI calls it.</li>
+  <li>For database changes, add a new migration in <code>supabase/migrations/</code> in the API PR. Never edit a migration that has already been applied.</li>
+</ol>
+
+<h2 id="roles">Who does what</h2>
+<div class="table"><table>
+<tr><th>Role (SPMP)</th><th>In this workflow</th></tr>
+<tr><td>Project Manager / Lead Developer</td><td>Approves release PRs into <code>main</code>, is a required reviewer for production deploys, and manages repo settings and secrets</td></tr>
+<tr><td>Supporting Developers</td><td>Create <code>feature/*</code> and <code>fix/*</code> branches, open PRs into <code>development</code>, and review each other's PRs</td></tr>
+<tr><td>QA &amp; Security</td><td>Review PRs for tests and security, test on <strong>staging</strong> after merges, sign off before a release, and add tests in <code>*.test.ts(x)</code></td></tr>
+</table></div>
+
+<h2 id="admin">One-time admin setup (org owner or lead)</h2>
+<details open>
+  <summary>1. Give the team access</summary>
+  <p>GitHub → VersionControlSD3 → Teams → create a team (e.g. <code>laag-ta-bai-devs</code>) → add members → Repositories → add both repos with <strong>Write</strong> access. Leads get <strong>Maintain</strong>.</p>
+</details>
+<details>
+  <summary>2. Protect <code>main</code> and <code>development</code></summary>
+  <p>In each repo, go to Settings → Rules → Rulesets → New branch ruleset (or Settings → Branches):</p>
+  <ul>
+    <li><strong>main:</strong> require a pull request with 1 approval and dismiss stale approvals. Require the status check <code>Lint, test and build</code>. Require conversation resolution. Block force pushes and deletions.</li>
+    <li><strong>development:</strong> require a pull request with 1 approval and the same status check. Block force pushes.</li>
+    <li>Settings → General: allow <strong>squash merging</strong> (for features) and <strong>merge commits</strong> (for releases), and turn on <em>Automatically delete head branches</em>.</li>
+  </ul>
+</details>
+<details>
+  <summary>3. Create the staging and production environments</summary>
+  <p>Settings → Environments → <strong>staging</strong> (deployment branch: <code>development</code>) and <strong>production</strong> (deployment branch: <code>main</code>, required reviewers: the PM or lead).</p>
+</details>
+<details>
+  <summary>4. Connect Vercel and Supabase, then turn deploys on</summary>
+  <ul>
+    <li>Create two Supabase projects, <em>laag-ta-bai-staging</em> and <em>laag-ta-bai-prod</em>, and apply the migrations to each (<code>npx supabase link</code> then <code>npx supabase db push</code>).</li>
+    <li>Create a Vercel project per repo. Set the environment variables for <em>Preview</em> (staging) and <em>Production</em> (see each repo's <code>docs/ci-cd.md</code>).</li>
+    <li>Add the secrets <code>VERCEL_TOKEN</code>, <code>VERCEL_ORG_ID</code> and <code>VERCEL_PROJECT_ID</code> to both GitHub environments. For the API, also add <code>SUPABASE_ACCESS_TOKEN</code>, <code>SUPABASE_PROJECT_REF</code> and <code>SUPABASE_DB_PASSWORD</code> if migrations should run automatically.</li>
+    <li>Add the repository variable <code>DEPLOY_ENABLED=true</code>. Optionally add <code>VERCEL_STAGING_ALIAS</code> (e.g. <code>laag-ta-bai-staging.vercel.app</code>) for a stable staging URL.</li>
+  </ul>
+</details>
+
+<h2 id="faq">FAQ</h2>
+<details>
+  <summary>CI failed on my PR. What now?</summary>
+  <p>Open the PR, go to <em>Checks → Lint, test and build</em>, and read the first red step. Reproduce it locally with the commands in step 4, fix it, commit, and push. CI re-runs by itself.</p>
+</details>
+<details>
+  <summary>I accidentally committed to development locally.</summary>
+<pre><code>git switch -c feature/my-work      <span class="c"># your commits move with you</span>
+git switch development &amp;&amp; git reset --hard origin/development
+git switch feature/my-work &amp;&amp; git push -u origin feature/my-work</code></pre>
+</details>
+<details>
+  <summary>I committed a secret.</summary>
+  <p>Tell the lead immediately and <strong>rotate the key</strong> in Supabase, Google or Vercel. Deleting the commit is not enough, because it stays in history and forks.</p>
+</details>
+<details>
+  <summary>Where do I test on my phone?</summary>
+  <p>Use the staging URL once deploys are on. Camera and GPS need HTTPS, which <code>localhost</code> over Wi-Fi doesn't provide.</p>
+</details>
+<details>
+  <summary>Can I work without Supabase or Gemini keys?</summary>
+  <p>Yes. The API's memory mode gives you seed landmarks, stub AI replies, and a "dev traveler" login. Most UI and logic work needs nothing else.</p>
+</details>
+
+<div class="callout ok"><strong>Current status (17 Oct 2026):</strong> both repos have <code>main</code> and <code>development</code>, and the first CI runs passed on both. Branch protection, environments and Vercel deploys still need the admin setup above.</div>
+</main>
+<footer>Laag ta bAI · VersionControlSD3 · Team workflow v1</footer>
+</body>
+</html>

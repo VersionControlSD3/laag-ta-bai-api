@@ -96,5 +96,6 @@ Full request and response shapes: [`openapi.yaml`](openapi.yaml).
 
 - [Architecture](docs/architecture.md): layers, data model, auth, AI flow
 - [CI/CD and deployment](docs/ci-cd.md): workflows, secrets, environments, rollback
+- [Team Git workflow (visual guide)](docs/team-workflow.html): branches, PRs, staging and production
 - [Branching and branch protection](docs/branching.md)
 - [Contributing](CONTRIBUTING.md)
