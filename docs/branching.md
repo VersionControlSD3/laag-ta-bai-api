@@ -5,7 +5,7 @@
 | Branch | Purpose | Deploys to |
 |---|---|---|
 | `main` | Production. Always releasable | Production (after approval) |
-| `develop` | Integration and testing | Development |
+| `develop` | Integration and testing | Staging |
 | `feature/<short-name>` | New work, branched from `develop` | – |
 | `fix/<short-name>` | Bug fixes, branched from `develop` | – |
 | `hotfix/<short-name>` | Urgent production fix, branched from `main` | – |
@@ -41,7 +41,7 @@ Settings → Branches → Add branch ruleset (or classic protection rule).
 - Settings → General: set the default branch to `develop` if you want PRs to target it by
   default. Keep `main` as default if you prefer; the Deploy workflow file must exist on the
   default branch for `workflow_run` triggers to fire.
-- Settings → Environments: create `development` and `production`. On `production`, add
+- Settings → Environments: create `staging` and `production`. On `production`, add
   required reviewers and limit deployment branches to `main`.
 
 > Branch protection on private repositories needs a paid GitHub plan for organizations.

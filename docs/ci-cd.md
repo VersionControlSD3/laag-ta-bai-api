@@ -17,7 +17,7 @@ CI still runs and nothing is deployed.
 
 | Branch | GitHub Environment | Vercel target |
 |---|---|---|
-| `develop` | `development` | Preview deployment (optionally aliased to a stable URL) |
+| `develop` | `staging` | Preview deployment (optionally aliased to a stable URL) |
 | `main` | `production` | Production (`--prod`) |
 
 ## One-time setup
@@ -26,9 +26,9 @@ CI still runs and nothing is deployed.
    Settings → Environment Variables set, for **Production** and **Preview** separately:
    `NODE_ENV=production`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GEMINI_API_KEY`,
    `GEMINI_MODEL` (optional), `CORS_ORIGINS` (the frontend URL for that environment).
-   Use a separate Supabase project and Gemini key for development and production (SPMP 3.2).
+   Use a separate Supabase project and Gemini key for staging and production (SPMP 3.2).
    `vercel.json` disables Vercel's own Git auto-deploys so GitHub Actions is the only deployer.
-2. **GitHub Environments**: Settings → Environments → create `development` and `production`.
+2. **GitHub Environments**: Settings → Environments → create `staging` and `production`.
    Add a required reviewer to `production`.
 3. **Secrets** (add to each environment):
 
@@ -46,7 +46,7 @@ CI still runs and nothing is deployed.
    |---|---|
    | `DEPLOY_ENABLED` | `true` to turn deploys on |
    | `MIGRATIONS_ENABLED` | `true` to run `supabase db push` before each deploy (set per environment) |
-   | `VERCEL_DEV_ALIAS` | Optional, e.g. `laag-ta-bai-api-dev.vercel.app` (in `development`) |
+   | `VERCEL_STAGING_ALIAS` | Optional, e.g. `laag-ta-bai-api-staging.vercel.app` (in `staging`) |
 
 5. Push to `develop` and watch **Actions → Deploy**.
 

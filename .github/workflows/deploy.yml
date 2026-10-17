@@ -1,6 +1,6 @@
-# Deploys after CI passes on a push to develop (development) or main (production).
+# Deploys after CI passes on a push to develop (staging) or main (production).
 # Disabled until the repository variable DEPLOY_ENABLED is set to "true".
-# See docs/deployment.md for the secrets and variables this needs.
+# See docs/ci-cd.md for the secrets and variables this needs.
 name: Deploy
 
 on:
@@ -13,8 +13,8 @@ on:
       environment:
         description: Target environment
         type: choice
-        options: [development, production]
-        default: development
+        options: [staging, production]
+        default: staging
 
 permissions:
   contents: read
@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to ${{ (github.event.workflow_run.head_branch == 'main' || inputs.environment == 'production') && 'production' || 'development' }}
+    name: Deploy to ${{ (github.event.workflow_run.head_branch == 'main' || inputs.environment == 'production') && 'production' || 'staging' }}
     if: >-
       vars.DEPLOY_ENABLED == 'true' &&
       (github.event_name == 'workflow_dispatch' ||
@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 20
     # Each GitHub Environment holds its own secrets. Add a required reviewer to
     # "production" so main deploys wait for manual approval (SPMP 3.2).
-    environment: ${{ (github.event.workflow_run.head_branch == 'main' || inputs.environment == 'production') && 'production' || 'development' }}
+    environment: ${{ (github.event.workflow_run.head_branch == 'main' || inputs.environment == 'production') && 'production' || 'staging' }}
     env:
       IS_PROD: ${{ github.event.workflow_run.head_branch == 'main' || inputs.environment == 'production' }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -83,10 +83,10 @@ jobs:
           url=$(vercel deploy --prebuilt ${{ env.IS_PROD == 'true' && '--prod' || '' }} --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Deployed to $url" >> "$GITHUB_STEP_SUMMARY"
-      # Optional stable URL for the development environment, e.g. laag-ta-bai-api-dev.vercel.app
-      - name: Alias development deployment
-        if: env.IS_PROD != 'true' && vars.VERCEL_DEV_ALIAS != ''
-        run: vercel alias set "${{ steps.deploy.outputs.url }}" "${{ vars.VERCEL_DEV_ALIAS }}" --token="$VERCEL_TOKEN"
+      # Optional stable URL for the staging environment, e.g. laag-ta-bai-api-staging.vercel.app
+      - name: Alias staging deployment
+        if: env.IS_PROD != 'true' && vars.VERCEL_STAGING_ALIAS != ''
+        run: vercel alias set "${{ steps.deploy.outputs.url }}" "${{ vars.VERCEL_STAGING_ALIAS }}" --token="$VERCEL_TOKEN"
       # Preview deployments may sit behind Vercel Authentication, so only a
       # production failure fails the job.
       - name: Smoke test
