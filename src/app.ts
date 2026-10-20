@@ -1,6 +1,8 @@
 import cors from 'cors'
 import express from 'express'
-import * as helmet from 'helmet'
+// Use Helmet's CommonJS declarations consistently in local and Vercel builds.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import helmet = require('helmet')
 import type { AppContext } from './context.js'
 import { loadEnv, type Env } from './config/env.js'
 import { createGeminiService, createStubAiService } from './lib/ai.js'

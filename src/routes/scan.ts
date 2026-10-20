@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import multer from 'multer'
-import rateLimit from 'express-rate-limit'
+import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import type { AppContext } from '../context.js'
 import { distanceMeters } from '../domain/geo.js'

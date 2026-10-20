@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import rateLimit from 'express-rate-limit'
+import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import type { AppContext } from '../context.js'
 import { CHAT_MEMORY_MESSAGES } from '../lib/ai.js'
