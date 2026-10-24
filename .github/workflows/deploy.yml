@@ -7,7 +7,7 @@ on:
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [development, main]
+    branches: [staging, main]
   workflow_dispatch:
     inputs:
       environment:
