@@ -20,6 +20,8 @@ security: []
 tags:
   - name: system
     description: Health and diagnostics
+  - name: auth
+    description: User authentication and registration
   - name: landmarks
     description: Landmark search and details
   - name: ai
@@ -45,6 +47,49 @@ paths:
                   dataSource: { type: string, enum: [memory, supabase] }
                   ai: { type: string, enum: [gemini, stub] }
                   version: { type: string }
+
+  /v1/auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Register a new traveler account (SRS 3.1.6)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                displayName: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          email: { type: string }
+                          displayName: { type: string }
+                      session:
+                        type: [object, 'null']
+                        properties:
+                          accessToken: { type: string }
+                          refreshToken: { type: string }
+                          tokenType: { type: string }
+                          expiresIn: { type: integer }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
 
   /v1/landmarks:
     get:
