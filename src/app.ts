@@ -10,6 +10,7 @@ import { createSupabaseAdmin } from './lib/supabase.js'
 import { errorHandler, notFoundHandler } from './middleware/errors.js'
 import { createMemoryStore } from './repositories/memoryStore.js'
 import { createSupabaseStore } from './repositories/supabaseStore.js'
+import { authRouter } from './routes/auth.js'
 import { chatRouter } from './routes/chat.js'
 import { healthRouter } from './routes/health.js'
 import { landmarksRouter } from './routes/landmarks.js'
@@ -39,6 +40,7 @@ export function createApp(ctx: AppContext = createContext(loadEnv())) {
 
   app.use(healthRouter(ctx))
   const v1 = express.Router()
+  v1.use(authRouter(ctx))
   v1.use(landmarksRouter(ctx))
   v1.use(questsRouter(ctx))
   v1.use(scanRouter(ctx))

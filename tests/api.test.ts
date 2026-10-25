@@ -128,3 +128,64 @@ describe('/v1/me', () => {
     expect(parian.completed).toBe(true)
   })
 })
+
+describe('POST /v1/auth/signup', () => {
+  it('registers a new user and returns user info with a valid session token', async () => {
+    const res = await request(app).post('/v1/auth/signup').send({
+      email: 'cebuano.traveler@example.com',
+      password: 'SecurePassword123!',
+      displayName: 'Lapu Lapu',
+    })
+
+    expect(res.status).toBe(201)
+    expect(res.body.data.user).toMatchObject({
+      email: 'cebuano.traveler@example.com',
+      displayName: 'Lapu Lapu',
+    })
+    expect(res.body.data.user.id).toBeDefined()
+    expect(res.body.data.session.accessToken).toBeDefined()
+
+    // The session token should immediately work on protected routes like /v1/me
+    const meRes = await request(app)
+      .get('/v1/me')
+      .set({ Authorization: `Bearer ${res.body.data.session.accessToken}` })
+    expect(meRes.status).toBe(200)
+    expect(meRes.body.data.profile.displayName).toBe('Lapu Lapu')
+  })
+
+  it('rejects signup with invalid email or short password', async () => {
+    const invalidEmail = await request(app).post('/v1/auth/signup').send({
+      email: 'not-an-email',
+      password: 'ValidPassword123!',
+      displayName: 'Traveler',
+    })
+    expect(invalidEmail.status).toBe(400)
+    expect(invalidEmail.body.error.code).toBe('validation_error')
+
+    const shortPassword = await request(app).post('/v1/auth/signup').send({
+      email: 'valid@example.com',
+      password: 'short',
+      displayName: 'Traveler',
+    })
+    expect(shortPassword.status).toBe(400)
+    expect(shortPassword.body.error.code).toBe('validation_error')
+  })
+
+  it('rejects duplicate email with 409 conflict', async () => {
+    await request(app).post('/v1/auth/signup').send({
+      email: 'duplicate@example.com',
+      password: 'Password123!',
+      displayName: 'First Traveler',
+    })
+
+    const duplicate = await request(app).post('/v1/auth/signup').send({
+      email: 'duplicate@example.com',
+      password: 'AnotherPassword123!',
+      displayName: 'Second Traveler',
+    })
+
+    expect(duplicate.status).toBe(409)
+    expect(duplicate.body.error.code).toBe('conflict')
+  })
+})
+
