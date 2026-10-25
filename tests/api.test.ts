@@ -189,3 +189,65 @@ describe('POST /v1/auth/signup', () => {
   })
 })
 
+describe('POST /v1/auth/login and GET /v1/auth/session', () => {
+  beforeEach(async () => {
+    await request(app).post('/v1/auth/signup').send({
+      email: 'traveler.juan@example.com',
+      password: 'MyPassword123!',
+      displayName: 'Juan dela Cruz',
+    })
+  })
+
+  it('authenticates user with correct password and returns session token', async () => {
+    const res = await request(app).post('/v1/auth/login').send({
+      email: 'traveler.juan@example.com',
+      password: 'MyPassword123!',
+    })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.user.email).toBe('traveler.juan@example.com')
+    expect(res.body.data.user.displayName).toBe('Juan dela Cruz')
+    expect(res.body.data.session.accessToken).toBeDefined()
+
+    // Test GET /v1/auth/session with the token
+    const sessionRes = await request(app)
+      .get('/v1/auth/session')
+      .set({ Authorization: `Bearer ${res.body.data.session.accessToken}` })
+
+    expect(sessionRes.status).toBe(200)
+    expect(sessionRes.body.data.user.displayName).toBe('Juan dela Cruz')
+    expect(sessionRes.body.data.profile.xp).toBe(0)
+  })
+
+  it('rejects login with wrong password', async () => {
+    const res = await request(app).post('/v1/auth/login').send({
+      email: 'traveler.juan@example.com',
+      password: 'WrongPassword!',
+    })
+
+    expect(res.status).toBe(401)
+    expect(res.body.error.code).toBe('unauthorized')
+  })
+
+  it('rejects login for non-existent user', async () => {
+    const res = await request(app).post('/v1/auth/login').send({
+      email: 'nobody@example.com',
+      password: 'Password123!',
+    })
+
+    expect(res.status).toBe(401)
+    expect(res.body.error.code).toBe('unauthorized')
+  })
+
+  it('rejects GET /v1/auth/session without valid authentication', async () => {
+    const noToken = await request(app).get('/v1/auth/session')
+    expect(noToken.status).toBe(401)
+
+    const badToken = await request(app)
+      .get('/v1/auth/session')
+      .set({ Authorization: 'Bearer bad-token' })
+    expect(badToken.status).toBe(401)
+  })
+})
+
+
