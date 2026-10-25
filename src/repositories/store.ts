@@ -1,6 +1,9 @@
-import type { Landmark, Profile, ProfileUpdate, Quest, Visit, VisitSource } from '../domain/types.js'
+import type { Landmark, Profile, ProfileUpdate, Quest, UserAccount, Visit, VisitSource } from '../domain/types.js'
 
 export type NewVisit = { userId: string; landmarkId: string; source: VisitSource; xpAwarded: number }
+
+export type NewUserAccount = { email: string; passwordHash: string; displayName: string }
+export type StoredUserAccount = UserAccount & { passwordHash: string }
 
 /**
  * Data access used by the routes. Two implementations exist:
@@ -16,4 +19,7 @@ export interface DataStore {
   updateProfile(userId: string, update: ProfileUpdate & Partial<Pick<Profile, 'xp' | 'streakCount' | 'lastActiveDate'>>): Promise<Profile>
   listVisits(userId: string): Promise<Visit[]>
   addVisit(visit: NewVisit): Promise<Visit>
+  createUserAccount?(user: NewUserAccount): Promise<UserAccount>
+  findUserAccountByEmail?(email: string): Promise<StoredUserAccount | null>
+  findUserAccountById?(id: string): Promise<UserAccount | null>
 }

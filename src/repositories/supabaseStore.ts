@@ -163,5 +163,31 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
       )
       return toVisit(row as VisitRow)
     },
+    async createUserAccount(input) {
+      const { data, error } = await db.auth.admin.createUser({
+        email: input.email,
+        password: input.passwordHash,
+        email_confirm: true,
+        user_metadata: { display_name: input.displayName },
+      })
+      if (error || !data.user) throw new Error(`Supabase user creation failed: ${error?.message}`)
+      return {
+        id: data.user.id,
+        email: data.user.email ?? input.email,
+        displayName: input.displayName,
+        createdAt: data.user.created_at,
+      }
+    },
+    async findUserAccountById(id) {
+      const { data, error } = await db.auth.admin.getUserById(id)
+      if (error || !data.user) return null
+      const meta = data.user.user_metadata as { display_name?: string } | undefined
+      return {
+        id: data.user.id,
+        email: data.user.email ?? '',
+        displayName: meta?.display_name ?? 'Traveler',
+        createdAt: data.user.created_at,
+      }
+    },
   }
 }

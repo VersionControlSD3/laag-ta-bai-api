@@ -37,6 +37,13 @@ export type Quest = {
   landmarkIds: string[]
 }
 
+export type UserAccount = {
+  id: string
+  email: string
+  displayName: string
+  createdAt: string
+}
+
 export type Profile = {
   id: string
   displayName: string

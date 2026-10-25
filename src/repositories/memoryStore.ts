@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { LANDMARKS, QUESTS } from '../data/seed.js'
-import type { Profile, Visit } from '../domain/types.js'
-import type { DataStore } from './store.js'
+import type { Profile, UserAccount, Visit } from '../domain/types.js'
+import type { DataStore, NewUserAccount, StoredUserAccount } from './store.js'
 
 export function createMemoryStore(): DataStore {
   const landmarks = structuredClone(LANDMARKS)
   const quests = structuredClone(QUESTS)
   const profiles = new Map<string, Profile>()
   const visits: Visit[] = []
+  const users = new Map<string, StoredUserAccount>()
+  const usersByEmail = new Map<string, string>()
 
   return {
     async listLandmarks() {
@@ -55,5 +57,35 @@ export function createMemoryStore(): DataStore {
       if (landmark) landmark.visitCount += 1
       return visit
     },
+    async createUserAccount(input: NewUserAccount): Promise<UserAccount> {
+      const emailKey = input.email.trim().toLowerCase()
+      if (usersByEmail.has(emailKey)) {
+        throw new Error('User already exists')
+      }
+      const id = randomUUID()
+      const user: StoredUserAccount = {
+        id,
+        email: input.email.trim(),
+        displayName: input.displayName.trim() || 'Traveler',
+        passwordHash: input.passwordHash,
+        createdAt: new Date().toISOString(),
+      }
+      users.set(id, user)
+      usersByEmail.set(emailKey, id)
+      // Mirror the on_auth_user_created trigger in Postgres
+      await this.getOrCreateProfile(id, { displayName: user.displayName })
+      return { id: user.id, email: user.email, displayName: user.displayName, createdAt: user.createdAt }
+    },
+    async findUserAccountByEmail(email: string): Promise<StoredUserAccount | null> {
+      const id = usersByEmail.get(email.trim().toLowerCase())
+      if (!id) return null
+      return users.get(id) ?? null
+    },
+    async findUserAccountById(id: string): Promise<UserAccount | null> {
+      const user = users.get(id)
+      if (!user) return null
+      return { id: user.id, email: user.email, displayName: user.displayName, createdAt: user.createdAt }
+    },
   }
 }
+
