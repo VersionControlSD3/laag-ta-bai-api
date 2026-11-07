@@ -87,7 +87,8 @@ See [`.env.example`](.env.example). Never commit `.env`.
 | GET | `/v1/quests` | optional | Quests, with progress when signed in |
 | POST | `/v1/scan` | optional | Photo → landmark (multipart `image`, `lat`, `lng`) |
 | POST | `/v1/chat` | optional | Ask the AI guide about a landmark |
-| GET / PATCH | `/v1/me` | required | Profile, rank, stats, badges, visits |
+| GET | `/v1/me` | required | Signed-in traveler’s profile, email, rank, stats, badges and visits |
+| PATCH | `/v1/me` | required | Update signed-in traveler’s profile |
 | POST | `/v1/me/visits` | required | Manual check-in |
 
 Full request and response shapes: [`openapi.yaml`](openapi.yaml).
