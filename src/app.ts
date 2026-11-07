@@ -19,12 +19,14 @@ import { questsRouter } from './routes/quests.js'
 import { scanRouter } from './routes/scan.js'
 
 export function createContext(env: Env): AppContext {
-  const supabase =
-    env.SUPABASE_URL && env.SUPABASE_SECRET_KEY ? createSupabaseAdmin(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY) : null
+  const { SUPABASE_URL: url, SUPABASE_SECRET_KEY: secretKey, PASSWORD_RESET_REDIRECT_URL: redirectTo } = env
+  const createAuthClient = url && secretKey ? () => createSupabaseAdmin(url, secretKey) : undefined
+  const supabase = createAuthClient?.() ?? null
   return {
     store: env.dataSource === 'supabase' && supabase ? createSupabaseStore(supabase) : createMemoryStore(),
     ai: env.GEMINI_API_KEY ? createGeminiService(env.GEMINI_API_KEY, env.GEMINI_MODEL) : createStubAiService(),
     auth: { supabase, devAuthEnabled: env.devAuthEnabled },
+    passwordRecovery: createAuthClient && redirectTo ? { createAuthClient, redirectTo } : undefined,
     corsOrigins: env.CORS_ORIGINS,
     dataSource: env.dataSource,
   }
