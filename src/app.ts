@@ -6,12 +6,14 @@ import helmet = require('helmet')
 import type { AppContext } from './context.js'
 import { loadEnv, type Env } from './config/env.js'
 import { createGeminiService, createStubAiService } from './lib/ai.js'
+import { createGoogleRoutesService, createUnavailableCommuteService } from './lib/commute.js'
 import { createSupabaseAdmin } from './lib/supabase.js'
 import { errorHandler, notFoundHandler } from './middleware/errors.js'
 import { createMemoryStore } from './repositories/memoryStore.js'
 import { createSupabaseStore } from './repositories/supabaseStore.js'
 import { authRouter } from './routes/auth.js'
 import { chatRouter } from './routes/chat.js'
+import { commuteRouter } from './routes/commute.js'
 import { healthRouter } from './routes/health.js'
 import { landmarksRouter } from './routes/landmarks.js'
 import { meRouter } from './routes/me.js'
@@ -24,6 +26,7 @@ export function createContext(env: Env): AppContext {
   return {
     store: env.dataSource === 'supabase' && supabase ? createSupabaseStore(supabase) : createMemoryStore(),
     ai: env.GEMINI_API_KEY ? createGeminiService(env.GEMINI_API_KEY, env.GEMINI_MODEL) : createStubAiService(),
+    commute: env.GOOGLE_MAPS_API_KEY ? createGoogleRoutesService(env.GOOGLE_MAPS_API_KEY) : createUnavailableCommuteService(),
     auth: { supabase, devAuthEnabled: env.devAuthEnabled },
     corsOrigins: env.CORS_ORIGINS,
     dataSource: env.dataSource,
@@ -45,6 +48,7 @@ export function createApp(ctx: AppContext = createContext(loadEnv())) {
   v1.use(questsRouter(ctx))
   v1.use(scanRouter(ctx))
   v1.use(chatRouter(ctx))
+  v1.use(commuteRouter(ctx))
   v1.use(meRouter(ctx))
   app.use('/v1', v1)
 
