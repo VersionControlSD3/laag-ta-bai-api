@@ -202,6 +202,37 @@ paths:
                   data: { $ref: '#/components/schemas/Landmark' }
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/landmarks/popular:
+    get:
+      operationId: popularLandmarks
+      tags: [landmarks]
+      summary: Popular landmarks (task 36)
+      description: |
+        Sorts by rating descending, then visitCount descending, then id ascending.
+        Applies filters and sorting before the limit. This follows the current frontend's
+        rating-first definition of popularity.
+        Coordinates are optional and must be supplied together. radiusKm requires both.
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: 'Matches name, district or category' }
+        - { name: category, in: query, schema: { $ref: '#/components/schemas/LandmarkCategory' } }
+        - { name: free, in: query, schema: { type: string, enum: ['true', 'false'] } }
+        - { name: minRating, in: query, schema: { type: number, minimum: 0, maximum: 5 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 10 } }
+        - { name: lat, in: query, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: lng, in: query, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: radiusKm, in: query, schema: { type: number, exclusiveMinimum: 0 } }
+      responses:
+        '200':
+          description: Landmark summaries; an empty list when nothing matches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LandmarkSummary' } }
+        '400': { $ref: '#/components/responses/Error' }
+
   /v1/quests:
     get:
       operationId: listQuests
