@@ -1,8 +1,6 @@
+import { createRequire } from 'node:module'
 import cors from 'cors'
 import express from 'express'
-// Use Helmet's CommonJS declarations consistently in local and Vercel builds.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import helmet = require('helmet')
 import type { AppContext } from './context.js'
 import { loadEnv, type Env } from './config/env.js'
 import { createGeminiService, createStubAiService } from './lib/ai.js'
@@ -17,6 +15,11 @@ import { landmarksRouter } from './routes/landmarks.js'
 import { meRouter } from './routes/me.js'
 import { questsRouter } from './routes/quests.js'
 import { scanRouter } from './routes/scan.js'
+
+// Helmet's types resolve to its CommonJS build even for ESM imports, so a default import doesn't
+// type-check, and `import helmet = require('helmet')` crashes under tsx (`npm run dev`) because tsx
+// emits a bare `require`. createRequire works the same under tsc, tsx and Vercel.
+const helmet = createRequire(import.meta.url)('helmet') as typeof import('helmet').default
 
 export function createContext(env: Env): AppContext {
   const { SUPABASE_URL: url, SUPABASE_SECRET_KEY: secretKey, PASSWORD_RESET_REDIRECT_URL: redirectTo } = env
@@ -36,7 +39,7 @@ export function createApp(ctx: AppContext = createContext(loadEnv())) {
   const app = express()
   app.disable('x-powered-by')
   app.set('trust proxy', 1)
-  app.use(helmet.default())
+  app.use(helmet())
   app.use(cors({ origin: ctx.corsOrigins, credentials: false }))
   app.use(express.json({ limit: '1mb' }))
 
