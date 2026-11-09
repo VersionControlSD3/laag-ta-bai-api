@@ -545,7 +545,7 @@ components:
       properties:
         origin: { $ref: '#/components/schemas/Coordinates' }
         destinationLandmarkId: { type: string, minLength: 1, maxLength: 200 }
-        departureTime: { type: string, format: date-time, description: 'Optional RFC 3339 timestamp, past 7 days through next 100 days. Defaults to now.' }
+        departureTime: { type: string, format: date-time, description: 'RFC 3339 timestamp. Accepts 7 days before through 100 days after the current time, inclusive, per Google Routes TRANSIT. Defaults to now. Values outside the window return HTTP 400 before contacting Google.' }
         preference: { type: string, enum: [LESS_WALKING, FEWER_TRANSFERS] }
 
     CommuteTransit:

@@ -133,8 +133,7 @@ describe('POST /v1/commute', () => {
   it.each([
     {}, { origin: { latitude: '10', longitude: 123 } }, { origin: { latitude: 91, longitude: 123 } },
     { origin: { latitude: 10, longitude: -181 } }, { departureTime: 'yesterday' },
-    { departureTime: new Date(Date.now() + 101 * 86_400_000).toISOString() },
-    { departureTime: new Date(Date.now() - 8 * 86_400_000).toISOString() }, { preference: 'DRIVE' },
+    { preference: 'DRIVE' },
   ])('rejects malformed input without calling the provider: %j', async (change) => {
     const ctx = createContext(loadEnv())
     const spy = vi.spyOn(ctx.commute, 'findRoutes')
@@ -142,6 +141,27 @@ describe('POST /v1/commute', () => {
     const res = await request(createApp(ctx)).post('/v1/commute').send(payload)
     expect(res.status).toBe(400)
     expect(spy).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { departureTime: '2026-04-30T11:59:59.999Z', status: 400 },
+    { departureTime: '2026-04-30T12:00:00.000Z', status: 200 },
+    { departureTime: '2026-08-15T12:00:00.000Z', status: 200 },
+    { departureTime: '2026-08-15T12:00:00.001Z', status: 400 },
+  ])('returns $status at the transit window boundary $departureTime', async ({ departureTime, status }) => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-05-07T12:00:00.000Z'))
+    const ctx = createContext(loadEnv())
+    const findRoutes = vi.spyOn(ctx.commute, 'findRoutes').mockResolvedValue([])
+
+    const res = await request(createApp(ctx)).post('/v1/commute').send({ ...body, departureTime })
+    expect(res.status).toBe(status)
+    if (status === 200) {
+      expect(findRoutes).toHaveBeenCalledOnce()
+      expect(findRoutes).toHaveBeenCalledWith(expect.objectContaining({ departureTime }))
+    } else {
+      expect(res.body.error.code).toBe('validation_error')
+      expect(findRoutes).not.toHaveBeenCalled()
+    }
   })
 
   it('rate limits route requests with the JSON error shape', async () => {

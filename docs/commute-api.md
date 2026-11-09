@@ -2,7 +2,11 @@
 
 `POST /v1/commute` accepts `origin: { latitude, longitude }` and
 `destinationLandmarkId`. Destination coordinates come from the landmark database.
-Optional `departureTime` is RFC 3339, in the past 7 days through next 100 days.
+Optional `departureTime` is an RFC 3339 timestamp. The API uses the
+[Google Routes transit window](https://developers.google.com/maps/documentation/routes/transit-route)
+of 7 days before through 100 days after the current time, inclusive. Omitting
+it uses the current time. A timestamp outside the window returns HTTP 400
+before contacting Google. Available routes still depend on the transit schedule.
 Optional `preference` is `LESS_WALKING` or `FEWER_TRANSFERS`.
 
 The Google Routes adapter requests TRANSIT and returns up to four routes containing
