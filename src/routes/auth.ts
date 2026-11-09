@@ -4,6 +4,7 @@ import type { AppContext } from '../context.js'
 import { hashPassword, verifyPassword } from '../lib/authCrypto.js'
 import { conflict, unauthorized } from '../lib/errors.js'
 import { requireAuth } from '../middleware/auth.js'
+import { passwordRecoveryRouter } from './passwordRecovery.js'
 
 const signupSchema = z.object({
   email: z.string().trim().email(),
@@ -18,6 +19,7 @@ const loginSchema = z.object({
 
 export function authRouter(ctx: AppContext) {
   const router = Router()
+  router.use('/auth', passwordRecoveryRouter(ctx.passwordRecovery))
 
   // Issue #6: Sign Up API
   router.post('/auth/signup', async (req, res) => {
