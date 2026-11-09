@@ -83,9 +83,24 @@ function check<T>(result: { data: T; error: { message: string } | null }): T {
 
 export function createSupabaseStore(db: SupabaseClient): DataStore {
   return {
-    async listLandmarks() {
-      const rows = check(await db.from('landmarks').select('*').order('name'))
-      return (rows as LandmarkRow[]).map(toLandmark)
+    async listLandmarks(options) {
+      if (!options?.allPages) {
+        const rows = check(await db.from('landmarks').select('*').order('name'))
+        return (rows as LandmarkRow[]).map(toLandmark)
+      }
+
+      const landmarks: Landmark[] = []
+      let afterId: string | undefined
+      for (;;) {
+        const page = db.from('landmarks').select('*').order('id').limit(500)
+        const rows = check(await (afterId === undefined ? page : page.gt('id', afterId))) as LandmarkRow[]
+        const last = rows.at(-1)
+        // A short page can still have a successor if the project caps page size.
+        if (!last) return landmarks
+
+        for (const row of rows) landmarks.push(toLandmark(row))
+        afterId = last.id
+      }
     },
     async getLandmark(id) {
       const row = check(await db.from('landmarks').select('*').eq('id', id).maybeSingle())

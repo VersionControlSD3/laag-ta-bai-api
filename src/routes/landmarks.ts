@@ -42,7 +42,7 @@ export function landmarksRouter(ctx: AppContext) {
     const origin = query.lat !== undefined && query.lng !== undefined
       ? { latitude: query.lat, longitude: query.lng } : undefined
     const needle = query.q?.toLowerCase()
-    const results = (await ctx.store.listLandmarks())
+    const results = (await ctx.store.listLandmarks({ allPages: true }))
       .filter((l) => !needle || `${l.name} ${l.district} ${l.category}`.toLowerCase().includes(needle))
       .filter((l) => !query.category || l.category === query.category)
       .filter((l) => query.free === undefined || (query.free === 'true') === (l.admissionFee === 0))
