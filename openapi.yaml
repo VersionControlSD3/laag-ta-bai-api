@@ -227,9 +227,9 @@ paths:
         - { name: category, in: query, schema: { $ref: '#/components/schemas/LandmarkCategory' } }
         - { name: free, in: query, schema: { type: string, enum: ['true', 'false'] } }
         - { name: minRating, in: query, schema: { type: number, minimum: 0, maximum: 5 } }
-        - { name: lat, in: query, schema: { type: number }, description: 'With lng, adds distanceMeters and sorts nearest first' }
-        - { name: lng, in: query, schema: { type: number } }
-        - { name: radiusKm, in: query, schema: { type: number }, description: Requires lat/lng }
+        - { name: lat, in: query, schema: { type: number, minimum: -90, maximum: 90 }, description: 'Supply together with lng; adds distanceMeters and sorts nearest first' }
+        - { name: lng, in: query, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: radiusKm, in: query, schema: { type: number, exclusiveMinimum: 0 }, description: 'Applied when lat/lng are present; ignored without coordinates for existing client compatibility' }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
       responses:
         '200':
@@ -240,6 +240,27 @@ paths:
                 type: object
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/LandmarkSummary' } }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/landmarks/nearby:
+    get:
+      operationId: nearbyLandmarks
+      tags: [landmarks]
+      summary: Places nearby the supplied location (task 35)
+      description: |
+        Both coordinates are required. Returns landmarks within radiusKm, nearest first.
+        Defaults to a 5 km radius and 10 results. Distances are radial, not road distances.
+      parameters:
+        - { name: lat, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: lng, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: radiusKm, in: query, schema: { type: number, exclusiveMinimum: 0, default: 5 } }
+        - { $ref: '#/components/parameters/LandmarkSearch' }
+        - { $ref: '#/components/parameters/LandmarkCategory' }
+        - { $ref: '#/components/parameters/FreeAdmission' }
+        - { $ref: '#/components/parameters/MinimumRating' }
+        - { $ref: '#/components/parameters/DiscoveryLimit' }
+      responses:
+        '200': { $ref: '#/components/responses/LandmarkList' }
         '400': { $ref: '#/components/responses/Error' }
 
   /v1/landmarks/{id}:
@@ -420,6 +441,12 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
 
 components:
+  parameters:
+    LandmarkSearch: { name: q, in: query, schema: { type: string }, description: 'Matches name, district or category' }
+    LandmarkCategory: { name: category, in: query, schema: { $ref: '#/components/schemas/LandmarkCategory' } }
+    FreeAdmission: { name: free, in: query, schema: { type: string, enum: ['true', 'false'] } }
+    MinimumRating: { name: minRating, in: query, schema: { type: number, minimum: 0, maximum: 5 } }
+    DiscoveryLimit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 10 } }
   securitySchemes:
     bearerAuth:
       type: http
@@ -427,6 +454,15 @@ components:
       description: Supabase Auth access token
 
   responses:
+    LandmarkList:
+      description: Landmark summaries; an empty list when nothing matches
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { type: array, items: { $ref: '#/components/schemas/LandmarkSummary' } }
     Error:
       description: Error
       content:
