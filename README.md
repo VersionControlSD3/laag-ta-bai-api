@@ -103,6 +103,7 @@ See [`.env.example`](.env.example). Never commit `.env`.
 |---|---|---|---|
 | GET | `/health` | – | Status, data source, AI mode |
 | GET | `/v1/landmarks` | – | Search, filter, sort by distance |
+| GET | `/v1/landmarks/nearby` | – | Nearby landmarks, required coordinates, default 5 km |
 | GET | `/v1/landmarks/:id` | – | Detail with story sections |
 | GET | `/v1/landmarks/popular` | – | Popular landmarks ranked by rating and visit count |
 | GET | `/v1/quests` | optional | Quests, with progress when signed in |
