@@ -13,6 +13,7 @@ declare module 'express-serve-static-core' {
 export type AuthOptions = {
   supabase: SupabaseClient | null
   devAuthEnabled: boolean
+  findDevAccount?: (id: string) => Promise<AuthUser | null>
 }
 
 const DEV_PREFIX = 'dev:'
@@ -20,7 +21,8 @@ const DEV_PREFIX = 'dev:'
 async function resolveUser(token: string, options: AuthOptions): Promise<AuthUser | null> {
   if (options.devAuthEnabled && token.startsWith(DEV_PREFIX)) {
     const id = token.slice(DEV_PREFIX.length).trim()
-    return id ? { id, email: null, displayName: 'Dev Traveler' } : null
+    if (!id) return null
+    return (await options.findDevAccount?.(id)) ?? { id, email: null, displayName: 'Dev Traveler' }
   }
   if (!options.supabase) return null
   // Verifies the Supabase access token issued to the frontend by Supabase Auth.

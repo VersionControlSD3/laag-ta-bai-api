@@ -103,11 +103,13 @@ See [`.env.example`](.env.example). Never commit `.env`.
 |---|---|---|---|
 | GET | `/health` | – | Status, data source, AI mode |
 | GET | `/v1/landmarks` | – | Search, filter, sort by distance |
+| GET | `/v1/landmarks/nearby` | – | Nearby landmarks, required coordinates, default 5 km |
 | GET | `/v1/landmarks/:id` | – | Detail with story sections |
 | GET | `/v1/quests` | optional | Quests, with progress when signed in |
 | POST | `/v1/scan` | optional | Photo → landmark (multipart `image`, `lat`, `lng`) |
 | POST | `/v1/chat` | optional | Ask the AI guide about a landmark |
-| GET / PATCH | `/v1/me` | required | Profile, rank, stats, badges, visits |
+| GET | `/v1/me` | required | Signed-in traveler’s profile, email, rank, stats, badges and visits |
+| PATCH | `/v1/me` | required | Update signed-in traveler’s profile |
 | POST | `/v1/me/visits` | required | Manual check-in |
 
 Full request and response shapes: [`openapi.yaml`](openapi.yaml).
