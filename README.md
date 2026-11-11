@@ -43,6 +43,26 @@ curl -H "Authorization: Bearer dev:me" localhost:3000/v1/me
 2. Or hosted: link with `npx supabase link --project-ref <ref>` and run `npx supabase db push`.
 3. Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env` and restart. `/health` should report `"dataSource":"supabase"`.
 
+### Password recovery
+
+Set `PASSWORD_RESET_REDIRECT_URL` to the frontend's reset form and add that
+exact URL to the project's Supabase Auth redirect allowlist. Configure email
+delivery in Supabase. In **Authentication → Email Templates → Reset password**,
+use a link to the frontend that carries the recovery token hash, for example:
+
+```html
+<a href="{{ .RedirectTo }}#token_hash={{ .TokenHash }}">Reset password</a>
+```
+
+The frontend posts the email to `/v1/auth/forgot-password`. The response is
+generic, including when no email is sent. The reset form reads `token_hash`
+from the URL fragment and sends it as `tokenHash`, with the new `password`,
+to `/v1/auth/reset-password`. Keep the token out of logs and clear the
+fragment after reading it. Submit the token only when the user submits the form.
+If the token has expired or was consumed by a failed update, request a new link.
+These endpoints require Supabase and the redirect setting. The memory store
+cannot send recovery email or reset passwords.
+
 ### Using Gemini
 
 Set `GEMINI_API_KEY` (from Google AI Studio). `GEMINI_MODEL` defaults to `gemini-flash-latest`.
