@@ -375,10 +375,15 @@ paths:
       operationId: getMe
       tags: [progress]
       summary: Current traveler's profile, rank, stats, badges and visits (SRS 3.1.6.1)
+      description: The bearer token identifies the traveler. The request does not take a user ID.
       security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Profile bundle
+          headers:
+            Cache-Control:
+              description: Prevents caching of personal profile data.
+              schema: { type: string, const: 'private, no-store' }
           content:
             application/json:
               schema:
@@ -616,7 +621,9 @@ components:
       required: [profile, email, rank, stats, badges, recentVisits]
       properties:
         profile: { $ref: '#/components/schemas/Profile' }
-        email: { type: [string, 'null'] }
+        email:
+          type: [string, 'null']
+          description: Email of the authenticated traveler, or null if the account has no email.
         rank: { $ref: '#/components/schemas/Rank' }
         stats:
           type: object
