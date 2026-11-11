@@ -17,6 +17,14 @@ const envSchema = z.object({
   DATA_SOURCE: z.preprocess(emptyToUndefined, z.enum(['memory', 'supabase']).optional()),
   SUPABASE_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   SUPABASE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  PASSWORD_RESET_REDIRECT_URL: z.preprocess(
+    emptyToUndefined,
+    z.url({ protocol: /^https?$/ }).refine((value) => {
+      const url = URL.parse(value)
+      return url && !url.username && !url.password && !value.includes('#') &&
+        (url.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+    }, 'Use an HTTPS reset page without credentials or a fragment (HTTP is allowed for localhost)').optional(),
+  ),
   GEMINI_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   GEMINI_MODEL: z.preprocess(emptyToUndefined, z.string().default('gemini-flash-latest')),
   ALLOW_DEV_AUTH: z
