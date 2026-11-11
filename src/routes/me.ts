@@ -21,10 +21,14 @@ const visitBody = z.object({ landmarkId: z.string().min(1) })
 
 export function meRouter(ctx: AppContext) {
   const router = Router()
-  router.use('/me', requireAuth(ctx.auth))
+  router.use('/me', requireAuth({
+    ...ctx.auth,
+    findDevAccount: ctx.store.findUserAccountById?.bind(ctx.store),
+  }))
 
   // SRS 3.1.6.1 profile, 3.1.3 mastery stats, badges and visit history.
   router.get('/me', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store')
     const user = req.user!
     const [profile, visits, quests, landmarks] = await Promise.all([
       ctx.store.getOrCreateProfile(user.id, { displayName: user.displayName }),
