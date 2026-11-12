@@ -26,6 +26,8 @@ tags:
     description: Landmark search and details
   - name: ai
     description: Gemini-backed scan and chat
+  - name: commute
+    description: Public transit directions to heritage landmarks
   - name: progress
     description: Profile, XP, quests and visits
 
@@ -281,6 +283,37 @@ paths:
                   data: { $ref: '#/components/schemas/Landmark' }
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/landmarks/popular:
+    get:
+      operationId: popularLandmarks
+      tags: [landmarks]
+      summary: Popular landmarks (task 36)
+      description: |
+        Sorts by rating descending, then visitCount descending, then id ascending.
+        Applies filters and sorting before the limit. This follows the current frontend's
+        rating-first definition of popularity.
+        Coordinates are optional and must be supplied together. radiusKm requires both.
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: 'Matches name, district or category' }
+        - { name: category, in: query, schema: { $ref: '#/components/schemas/LandmarkCategory' } }
+        - { name: free, in: query, schema: { type: string, enum: ['true', 'false'] } }
+        - { name: minRating, in: query, schema: { type: number, minimum: 0, maximum: 5 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 10 } }
+        - { name: lat, in: query, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: lng, in: query, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: radiusKm, in: query, schema: { type: number, exclusiveMinimum: 0 } }
+      responses:
+        '200':
+          description: Landmark summaries; an empty list when nothing matches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LandmarkSummary' } }
+        '400': { $ref: '#/components/responses/Error' }
+
   /v1/quests:
     get:
       operationId: listQuests
@@ -340,6 +373,9 @@ paths:
       description: |
         The client holds the transcript and sends it every turn; the server keeps the
         last 30 messages (15 exchanges). Rate limited to 30 requests per minute per IP.
+        The last input message must be from the user. Client timestamps are optional.
+        Replies include a server-generated createdAt and fit within the input message length limit.
+        With no Gemini key replies are explicitly labeled as stubs. AI failures return 503.
       security: [{}, { bearerAuth: [] }]
       requestBody:
         required: true
@@ -349,7 +385,7 @@ paths:
               type: object
               required: [landmarkId, messages]
               properties:
-                landmarkId: { type: string }
+                landmarkId: { type: string, minLength: 1, maxLength: 200 }
                 messages:
                   type: array
                   minItems: 1
@@ -366,10 +402,46 @@ paths:
                   data:
                     type: object
                     properties:
-                      message: { $ref: '#/components/schemas/ChatMessage' }
+                      message: { $ref: '#/components/schemas/ChatReply' }
                       progress: { oneOf: [{ $ref: '#/components/schemas/ProgressUpdate' }, { type: 'null' }] }
         '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /v1/commute:
+    post:
+      operationId: findCommute
+      tags: [commute]
+      summary: Local transit navigation to a landmark (task 36, SRS 3.1.5)
+      description: |
+        Resolves a destination from the landmark database and requests Google Routes TRANSIT
+        directions from the supplied origin. Rate limited to 20 requests/minute/IP.
+        Requires the server GOOGLE_MAPS_API_KEY with Routes API enabled. Returns no_routes
+        when Google has no coverage for that journey; never invents jeepney codes or fares.
+        Coordinates are sent to Google for this request and are not persisted by this handler.
+        Display Google's required attribution and returned transit agency attribution with directions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommuteInput' }
+      responses:
+        '200':
+          description: Transit routes or an explicit no_routes result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/CommuteResult' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+        '504': { $ref: '#/components/responses/Error' }
 
   /v1/me:
     get:
@@ -580,7 +652,17 @@ components:
       required: [role, content]
       properties:
         role: { type: string, enum: [user, model] }
-        content: { type: string, maxLength: 2000, description: Markdown for model replies }
+        content: { type: string, minLength: 1, maxLength: 2000, description: Markdown for model replies }
+        createdAt: { type: string, format: date-time, description: Optional client timestamp; always present on server replies }
+
+    ChatReply:
+      allOf:
+        - $ref: '#/components/schemas/ChatMessage'
+        - type: object
+          required: [createdAt]
+          properties:
+            role: { type: string, const: model }
+            createdAt: { type: string, format: date-time }
 
     Profile:
       type: object
@@ -605,6 +687,80 @@ components:
         nationality: { type: [string, 'null'], maxLength: 60 }
         bio: { type: [string, 'null'], maxLength: 280 }
         language: { type: string, enum: [en, ceb] }
+
+    Coordinates:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+
+    CommuteInput:
+      type: object
+      required: [origin, destinationLandmarkId]
+      properties:
+        origin: { $ref: '#/components/schemas/Coordinates' }
+        destinationLandmarkId: { type: string, minLength: 1, maxLength: 200 }
+        departureTime: { type: string, format: date-time, description: 'RFC 3339 timestamp. Accepts 7 days before through 100 days after the current time, inclusive, per Google Routes TRANSIT. Defaults to now. Values outside the window return HTTP 400 before contacting Google.' }
+        preference: { type: string, enum: [LESS_WALKING, FEWER_TRANSFERS] }
+
+    CommuteTransit:
+      type: object
+      required: [lineName, lineCode, vehicleType, headsign, departureStop, arrivalStop, departureTime, arrivalTime, stopCount, agencies]
+      properties:
+        lineName: { type: [string, 'null'] }
+        lineCode: { type: [string, 'null'] }
+        vehicleType: { type: [string, 'null'] }
+        headsign: { type: [string, 'null'] }
+        departureStop: { type: [string, 'null'] }
+        arrivalStop: { type: [string, 'null'] }
+        departureTime: { type: [string, 'null'], format: date-time }
+        arrivalTime: { type: [string, 'null'], format: date-time }
+        stopCount: { type: [integer, 'null'] }
+        agencies:
+          type: array
+          items:
+            type: object
+            required: [name, uri]
+            properties:
+              name: { type: [string, 'null'] }
+              uri: { type: [string, 'null'] }
+
+    CommuteStep:
+      type: object
+      required: [travelMode, instruction, distanceMeters, durationSeconds, transit]
+      properties:
+        travelMode: { type: string, description: 'Google travel mode, usually WALK or TRANSIT' }
+        instruction: { type: [string, 'null'] }
+        distanceMeters: { type: number, minimum: 0 }
+        durationSeconds: { type: number, minimum: 0 }
+        transit: { oneOf: [{ $ref: '#/components/schemas/CommuteTransit' }, { type: 'null' }] }
+
+    CommuteRoute:
+      type: object
+      required: [distanceMeters, durationSeconds, encodedPolyline, fareText, steps]
+      properties:
+        distanceMeters: { type: number, minimum: 0 }
+        durationSeconds: { type: number, minimum: 0 }
+        encodedPolyline: { type: [string, 'null'] }
+        fareText: { type: [string, 'null'], description: 'Localized fare from Google if known; null does not mean free' }
+        steps: { type: array, items: { $ref: '#/components/schemas/CommuteStep' } }
+
+    CommuteResult:
+      type: object
+      required: [provider, status, destination, routes]
+      properties:
+        provider: { type: string, const: google_routes }
+        status: { type: string, enum: [ok, no_routes] }
+        destination:
+          allOf:
+            - $ref: '#/components/schemas/Coordinates'
+            - type: object
+              required: [id, name]
+              properties:
+                id: { type: string }
+                name: { type: string }
+        routes: { type: array, maxItems: 4, items: { $ref: '#/components/schemas/CommuteRoute' } }
 
     Visit:
       type: object

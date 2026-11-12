@@ -68,6 +68,8 @@ earns XP on success.
 **Ask bAI** (`POST /v1/chat`): the client keeps the transcript and sends it each turn.
 The server keeps the last 30 messages (15 exchanges), adds a system prompt grounded in the
 landmark record, applies Gemini safety settings, and returns the reply.
+Replies include a server timestamp in `createdAt`. An AI provider failure returns
+HTTP 503 without awarding XP.
 
 **XP rules** (`services/progress.ts`): 50 XP per engagement, once per landmark per
 Philippine calendar day; streak increments on consecutive days; rank thresholds in
