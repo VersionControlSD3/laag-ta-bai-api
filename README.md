@@ -105,6 +105,7 @@ See [`.env.example`](.env.example). Never commit `.env`.
 | GET | `/v1/landmarks` | – | Search, filter, sort by distance |
 | GET | `/v1/landmarks/nearby` | – | Nearby landmarks, required coordinates, default 5 km |
 | GET | `/v1/landmarks/:id` | – | Detail with story sections |
+| GET | `/v1/landmarks/popular` | – | Popular landmarks ranked by rating and visit count |
 | GET | `/v1/quests` | optional | Quests, with progress when signed in |
 | POST | `/v1/scan` | optional | Photo → landmark (multipart `image`, `lat`, `lng`) |
 | POST | `/v1/chat` | optional | Ask the AI guide about a landmark |
