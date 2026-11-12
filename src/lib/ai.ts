@@ -82,7 +82,12 @@ export function createGeminiService(apiKey: string, model: string): AiService {
           },
         }),
       )
-      const parsed = JSON.parse(response.text ?? '{}') as Partial<Identification>
+      let parsed: Partial<Identification> = {}
+      try {
+        parsed = JSON.parse(response.text ?? '{}') as Partial<Identification>
+      } catch {
+        parsed = {}
+      }
       const known = candidates.some((c) => c.id === parsed.landmarkId)
       return {
         landmarkId: known ? (parsed.landmarkId ?? null) : null,
