@@ -9,6 +9,7 @@ export default defineConfig({
       NODE_ENV: 'test',
       DATA_SOURCE: 'memory',
       GEMINI_API_KEY: '',
+      GOOGLE_MAPS_API_KEY: '',
       SUPABASE_URL: '',
       SUPABASE_SECRET_KEY: '',
     },

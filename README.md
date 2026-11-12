@@ -95,6 +95,7 @@ See [`.env.example`](.env.example). Never commit `.env`.
 | `SUPABASE_SECRET_KEY` | for Supabase | Secret / service_role key. **Server only**, bypasses RLS |
 | `GEMINI_API_KEY` | for real AI | Stubbed replies without it |
 | `GEMINI_MODEL` | no | Default `gemini-flash-latest` |
+| `GOOGLE_MAPS_API_KEY` | for transit | Server key with Routes API enabled |
 | `ALLOW_DEV_AUTH` | no | Dev tokens only work in memory mode and never in production |
 
 ## Endpoints
@@ -112,12 +113,14 @@ See [`.env.example`](.env.example). Never commit `.env`.
 | GET | `/v1/me` | required | Signed-in traveler’s profile, email, rank, stats, badges and visits |
 | PATCH | `/v1/me` | required | Update signed-in traveler’s profile |
 | POST | `/v1/me/visits` | required | Manual check-in |
+| POST | `/v1/commute` | – | Google transit directions from an origin to a landmark |
 
 Full request and response shapes: [`openapi.yaml`](openapi.yaml).
 
 ## Documentation
 
 - [Architecture](docs/architecture.md): layers, data model, auth, AI flow
+- [Local commute navigation](docs/commute-api.md)
 - [CI/CD and deployment](docs/ci-cd.md): workflows, secrets, environments, rollback
 - [Team Git workflow (visual guide)](docs/team-workflow.html): branches, PRs, staging and production
 - [Branching and branch protection](docs/branching.md)
