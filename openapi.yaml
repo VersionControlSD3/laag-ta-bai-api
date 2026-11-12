@@ -317,8 +317,8 @@ paths:
               required: [image]
               properties:
                 image: { type: string, format: binary, description: 'JPEG, PNG or HEIC, max 10 MB' }
-                lat: { type: number }
-                lng: { type: number }
+                lat: { type: number, minimum: -90, maximum: 90 }
+                lng: { type: number, minimum: -180, maximum: 180 }
       responses:
         '200':
           description: Scan result
@@ -330,6 +330,7 @@ paths:
                   data: { $ref: '#/components/schemas/ScanResult' }
         '400': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
 
   /v1/chat:
     post:
