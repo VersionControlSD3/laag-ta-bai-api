@@ -19,12 +19,27 @@ const profileUpdate = z
 
 const visitBody = z.object({ landmarkId: z.string().min(1) })
 
+const savePlaceBody = z
+  .object({
+    landmarkId: z.string().trim().min(1).optional(),
+    placeId: z.string().trim().min(1).optional(),
+  })
+  .refine((data) => data.landmarkId || data.placeId, {
+    message: 'landmarkId is required',
+    path: ['landmarkId'],
+  })
+  .transform((data) => ({
+    landmarkId: (data.landmarkId ?? data.placeId)!,
+  }))
+
 export function meRouter(ctx: AppContext) {
   const router = Router()
-  router.use('/me', requireAuth({
+  const authMiddleware = requireAuth({
     ...ctx.auth,
     findDevAccount: ctx.store.findUserAccountById?.bind(ctx.store),
-  }))
+  })
+
+  router.use('/me', authMiddleware)
 
   // SRS 3.1.6.1 profile, 3.1.3 mastery stats, badges and visit history.
   router.get('/me', async (req, res) => {
@@ -77,6 +92,59 @@ export function meRouter(ctx: AppContext) {
         rank: result.rank,
         leveledUp: result.leveledUp,
         newBadges: result.newBadges,
+      },
+    })
+  })
+
+  // SRS 3.1.1.3.c, SRS 3.6.3.2: save places for bookmarks and offline access (task 38).
+  router.post('/me/saved-places', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store')
+    const { landmarkId } = savePlaceBody.parse(req.body)
+    const landmark = await ctx.store.getLandmark(landmarkId)
+    if (!landmark) throw notFound('Landmark not found')
+
+    const saved = await ctx.store.savePlace(req.user!.id, landmarkId)
+    res.status(201).json({
+      data: {
+        ...saved,
+        landmark,
+      },
+    })
+  })
+
+  router.get('/me/saved-places', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store')
+    const savedPlaces = await ctx.store.listSavedPlaces(req.user!.id)
+    const landmarks = await ctx.store.listLandmarks()
+    const landmarkMap = new Map(landmarks.map((l) => [l.id, l]))
+    res.json({
+      data: savedPlaces.map((sp) => ({
+        ...sp,
+        landmark: landmarkMap.get(sp.landmarkId) ?? null,
+      })),
+    })
+  })
+
+  router.delete('/me/saved-places/:landmarkId', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store')
+    if (ctx.store.removeSavedPlace) {
+      await ctx.store.removeSavedPlace(req.user!.id, req.params.landmarkId)
+    }
+    res.status(204).end()
+  })
+
+  // Alias for callers invoking /saved-places directly with bearer authentication.
+  router.post('/saved-places', authMiddleware, async (req, res) => {
+    res.set('Cache-Control', 'private, no-store')
+    const { landmarkId } = savePlaceBody.parse(req.body)
+    const landmark = await ctx.store.getLandmark(landmarkId)
+    if (!landmark) throw notFound('Landmark not found')
+
+    const saved = await ctx.store.savePlace(req.user!.id, landmarkId)
+    res.status(201).json({
+      data: {
+        ...saved,
+        landmark,
       },
     })
   })

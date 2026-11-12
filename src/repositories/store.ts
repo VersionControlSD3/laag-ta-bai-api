@@ -1,4 +1,4 @@
-import type { Landmark, Profile, ProfileUpdate, Quest, UserAccount, Visit, VisitSource } from '../domain/types.js'
+import type { Landmark, Profile, ProfileUpdate, Quest, SavedPlace, UserAccount, Visit, VisitSource } from '../domain/types.js'
 
 export type NewVisit = { userId: string; landmarkId: string; source: VisitSource; xpAwarded: number }
 
@@ -22,4 +22,7 @@ export interface DataStore {
   createUserAccount?(user: NewUserAccount): Promise<UserAccount>
   findUserAccountByEmail?(email: string): Promise<StoredUserAccount | null>
   findUserAccountById?(id: string): Promise<UserAccount | null>
+  savePlace(userId: string, landmarkId: string): Promise<SavedPlace>
+  listSavedPlaces(userId: string): Promise<SavedPlace[]>
+  removeSavedPlace?(userId: string, landmarkId: string): Promise<boolean>
 }

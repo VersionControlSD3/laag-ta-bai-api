@@ -444,6 +444,65 @@ paths:
                           visit: { $ref: '#/components/schemas/Visit' }
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  /v1/me/saved-places:
+    post:
+      operationId: savePlace
+      tags: [landmarks]
+      summary: Save a place for bookmarks and offline access (SRS 3.1.1.3.c, task 38)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [landmarkId]
+              properties:
+                landmarkId: { type: string, minLength: 1 }
+                placeId: { type: string, minLength: 1 }
+      responses:
+        '201':
+          description: Place saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SavedPlace' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+    get:
+      operationId: listSavedPlaces
+      tags: [landmarks]
+      summary: List all saved places for the authenticated traveler
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Saved places
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/SavedPlace' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/me/saved-places/{landmarkId}:
+    delete:
+      operationId: removeSavedPlace
+      tags: [landmarks]
+      summary: Remove a saved place
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: landmarkId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204':
+          description: Place removed
+        '401': { $ref: '#/components/responses/Error' }
 
 components:
   parameters:
@@ -639,3 +698,13 @@ components:
               questId: { type: string }
               name: { type: string }
         recentVisits: { type: array, items: { $ref: '#/components/schemas/Visit' } }
+
+    SavedPlace:
+      type: object
+      required: [id, userId, landmarkId, createdAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        landmarkId: { type: string }
+        createdAt: { type: string, format: date-time }
+        landmark: { $ref: '#/components/schemas/Landmark' }
