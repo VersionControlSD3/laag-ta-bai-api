@@ -11,7 +11,8 @@ export type StoredUserAccount = UserAccount & { passwordHash: string }
  * - supabaseStore: Supabase Postgres via the server-side secret key
  */
 export interface DataStore {
-  listLandmarks(): Promise<Landmark[]>
+  /** Request all pages when the caller needs to rank the full collection. */
+  listLandmarks(options?: { allPages?: boolean }): Promise<Landmark[]>
   getLandmark(id: string): Promise<Landmark | null>
   listQuests(): Promise<Quest[]>
   /** Returns the profile, creating a default one on first access. */

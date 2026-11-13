@@ -71,7 +71,7 @@ export type Visit = {
   createdAt: string
 }
 
-export type ChatMessage = { role: 'user' | 'model'; content: string }
+export type ChatMessage = { role: 'user' | 'model'; content: string; createdAt?: string }
 
 export type SavedPlace = {
   id: string
@@ -79,4 +79,3 @@ export type SavedPlace = {
   landmarkId: string
   createdAt: string
 }
-

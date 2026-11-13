@@ -27,6 +27,7 @@ const envSchema = z.object({
   ),
   GEMINI_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   GEMINI_MODEL: z.preprocess(emptyToUndefined, z.string().default('gemini-flash-latest')),
+  GOOGLE_MAPS_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   ALLOW_DEV_AUTH: z
     .preprocess(emptyToUndefined, z.enum(['true', 'false']).default('true'))
     .transform((value) => value === 'true'),
