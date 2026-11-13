@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Landmark, Profile, Quest, Visit } from '../domain/types.js'
+import type { Landmark, Profile, Quest, SavedPlace, Visit } from '../domain/types.js'
 import type { DataStore } from './store.js'
 
 type LandmarkRow = {
@@ -39,6 +39,13 @@ type VisitRow = {
   created_at: string
 }
 
+type SavedPlaceRow = {
+  id: string
+  user_id: string
+  landmark_id: string
+  created_at: string
+}
+
 const toLandmark = (row: LandmarkRow): Landmark => ({
   id: row.id,
   name: row.name,
@@ -73,6 +80,13 @@ const toVisit = (row: VisitRow): Visit => ({
   landmarkId: row.landmark_id,
   source: row.source,
   xpAwarded: row.xp_awarded,
+  createdAt: row.created_at,
+})
+
+const toSavedPlace = (row: SavedPlaceRow): SavedPlace => ({
+  id: row.id,
+  userId: row.user_id,
+  landmarkId: row.landmark_id,
   createdAt: row.created_at,
 })
 
@@ -203,6 +217,38 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
         displayName: meta?.display_name ?? 'Traveler',
         createdAt: data.user.created_at,
       }
+    },
+    async savePlace(userId, landmarkId) {
+      const row = check(
+        await db
+          .from('saved_places')
+          .upsert(
+            { user_id: userId, landmark_id: landmarkId },
+            { onConflict: 'user_id,landmark_id' },
+          )
+          .select('*')
+          .single(),
+      )
+      return toSavedPlace(row as SavedPlaceRow)
+    },
+    async listSavedPlaces(userId) {
+      const rows = check(
+        await db
+          .from('saved_places')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false }),
+      )
+      return (rows as SavedPlaceRow[]).map(toSavedPlace)
+    },
+    async removeSavedPlace(userId, landmarkId) {
+      const { error, count } = await db
+        .from('saved_places')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
+        .eq('landmark_id', landmarkId)
+      if (error) throw new Error(`Failed to remove saved place: ${error.message}`)
+      return (count ?? 0) > 0
     },
   }
 }

@@ -72,3 +72,10 @@ export type Visit = {
 }
 
 export type ChatMessage = { role: 'user' | 'model'; content: string; createdAt?: string }
+
+export type SavedPlace = {
+  id: string
+  userId: string
+  landmarkId: string
+  createdAt: string
+}
