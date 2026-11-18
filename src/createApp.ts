@@ -1,6 +1,6 @@
-import { createRequire } from 'node:module'
 import cors from 'cors'
-import express from 'express'
+import express, { type RequestHandler } from 'express'
+import helmet from 'helmet'
 import type { AppContext } from './context.js'
 import { loadEnv, type Env } from './config/env.js'
 import { createGeminiService, createStubAiService } from './lib/ai.js'
@@ -18,11 +18,9 @@ import { meRouter } from './routes/me.js'
 import { questsRouter } from './routes/quests.js'
 import { scanRouter } from './routes/scan.js'
 
-// Helmet's types resolve to its CommonJS build even for ESM imports, so a default import doesn't
-// type-check, and `import helmet = require('helmet')` crashes under tsx (`npm run dev`) because tsx
-// emits a bare `require`. Use createRequire for runtime compatibility; vercel.json
-// explicitly includes Helmet because dependency tracing can miss this call.
-const helmet = createRequire(import.meta.url)('helmet') as typeof import('helmet').default
+// Keep the static import for Vercel's dependency tracer. Its TypeScript builder
+// can type Helmet's callable default export as the CommonJS module namespace.
+const createHelmet = helmet as typeof helmet & (() => RequestHandler)
 
 export function createContext(env: Env): AppContext {
   const { SUPABASE_URL: url, SUPABASE_SECRET_KEY: secretKey, PASSWORD_RESET_REDIRECT_URL: redirectTo } = env
@@ -39,11 +37,10 @@ export function createContext(env: Env): AppContext {
   }
 }
 
-export function createApp(ctx: AppContext = createContext(loadEnv())) {
-  const app = express()
+export function createApp(ctx: AppContext = createContext(loadEnv()), app = express()) {
   app.disable('x-powered-by')
   app.set('trust proxy', 1)
-  app.use(helmet())
+  app.use(createHelmet())
   app.use(cors({ origin: ctx.corsOrigins, credentials: false }))
   app.use(express.json({ limit: '1mb' }))
 
