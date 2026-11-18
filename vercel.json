@@ -2,6 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "node_modules/helmet/**"
+    }
+  },
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "git": { "deploymentEnabled": false }
 }

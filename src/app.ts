@@ -20,7 +20,8 @@ import { scanRouter } from './routes/scan.js'
 
 // Helmet's types resolve to its CommonJS build even for ESM imports, so a default import doesn't
 // type-check, and `import helmet = require('helmet')` crashes under tsx (`npm run dev`) because tsx
-// emits a bare `require`. createRequire works the same under tsc, tsx and Vercel.
+// emits a bare `require`. Use createRequire for runtime compatibility; vercel.json
+// explicitly includes Helmet because dependency tracing can miss this call.
 const helmet = createRequire(import.meta.url)('helmet') as typeof import('helmet').default
 
 export function createContext(env: Env): AppContext {
