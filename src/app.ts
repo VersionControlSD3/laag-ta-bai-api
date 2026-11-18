@@ -1,5 +1,5 @@
 import cors from 'cors'
-import express from 'express'
+import express, { type RequestHandler } from 'express'
 import helmet from 'helmet'
 import type { AppContext } from './context.js'
 import { loadEnv, type Env } from './config/env.js'
@@ -14,6 +14,10 @@ import { landmarksRouter } from './routes/landmarks.js'
 import { meRouter } from './routes/me.js'
 import { questsRouter } from './routes/quests.js'
 import { scanRouter } from './routes/scan.js'
+
+// Keep the static import for Vercel's dependency tracer. Its TypeScript builder
+// can type Helmet's callable default export as the CommonJS module namespace.
+const createHelmet = helmet as typeof helmet & (() => RequestHandler)
 
 export function createContext(env: Env): AppContext {
   const supabase =
@@ -31,7 +35,7 @@ export function createApp(ctx: AppContext = createContext(loadEnv())) {
   const app = express()
   app.disable('x-powered-by')
   app.set('trust proxy', 1)
-  app.use(helmet())
+  app.use(createHelmet())
   app.use(cors({ origin: ctx.corsOrigins, credentials: false }))
   app.use(express.json({ limit: '1mb' }))
 
