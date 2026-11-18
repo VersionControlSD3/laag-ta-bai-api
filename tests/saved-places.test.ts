@@ -1,6 +1,6 @@
 import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createApp, createContext } from '../src/app.js'
+import { createApp, createContext } from '../src/createApp.js'
 import { loadEnv } from '../src/config/env.js'
 
 let app: ReturnType<typeof createApp>
