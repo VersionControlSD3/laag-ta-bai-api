@@ -1,8 +1,6 @@
 import cors from 'cors'
 import express from 'express'
-// Use Helmet's CommonJS declarations consistently in local and Vercel builds.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import helmet = require('helmet')
+import helmet from 'helmet'
 import type { AppContext } from './context.js'
 import { loadEnv, type Env } from './config/env.js'
 import { createGeminiService, createStubAiService } from './lib/ai.js'
@@ -33,7 +31,7 @@ export function createApp(ctx: AppContext = createContext(loadEnv())) {
   const app = express()
   app.disable('x-powered-by')
   app.set('trust proxy', 1)
-  app.use(helmet.default())
+  app.use(helmet())
   app.use(cors({ origin: ctx.corsOrigins, credentials: false }))
   app.use(express.json({ limit: '1mb' }))
 
