@@ -31,8 +31,7 @@ export function createContext(env: Env): AppContext {
   }
 }
 
-export function createApp(ctx: AppContext = createContext(loadEnv())) {
-  const app = express()
+export function createApp(ctx: AppContext = createContext(loadEnv()), app = express()) {
   app.disable('x-powered-by')
   app.set('trust proxy', 1)
   app.use(createHelmet())
