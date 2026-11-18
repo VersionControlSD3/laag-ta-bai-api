@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp, createContext } from '../src/app.js'
+import { createApp, createContext } from '../src/createApp.js'
 import { loadEnv } from '../src/config/env.js'
 import { createSupabaseStore } from '../src/repositories/supabaseStore.js'
 

@@ -1,6 +1,6 @@
 import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createApp, createContext } from '../src/app.js'
+import { createApp, createContext } from '../src/createApp.js'
 import { loadEnv } from '../src/config/env.js'
 import { createGoogleRoutesService } from '../src/lib/commute.js'
 
