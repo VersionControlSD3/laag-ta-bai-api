@@ -20,7 +20,7 @@ export function createMemoryStore(): DataStore {
       return landmarks.find((landmark) => landmark.id === id) ?? null
     },
     async listQuests() {
-      return quests
+      return [...quests].sort((a, b) => a.title.localeCompare(b.title))
     },
     async getOrCreateProfile(userId, defaults) {
       let profile = profiles.get(userId)
