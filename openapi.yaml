@@ -270,8 +270,13 @@ paths:
       operationId: getLandmark
       tags: [landmarks]
       summary: Landmark detail with categorized story (SRS 3.1.1.3, 3.1.1.4)
+      description: |
+        Returns full landmark details including the categorized story (about, significance, architecture, trivia).
+        Optional GPS coordinates calculate distanceMeters.
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string }, description: 'Landmark slug identifier' }
+        - { name: lat, in: query, schema: { type: number, minimum: -90, maximum: 90 }, description: 'Supply together with lng to compute distanceMeters' }
+        - { name: lng, in: query, schema: { type: number, minimum: -180, maximum: 180 }, description: 'Supply together with lat to compute distanceMeters' }
       responses:
         '200':
           description: Landmark
@@ -281,6 +286,7 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/Landmark' }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
 
   /v1/landmarks/popular:
