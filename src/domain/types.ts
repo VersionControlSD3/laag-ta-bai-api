@@ -25,6 +25,7 @@ export type Landmark = {
   estimatedVisitMinutes: number
   visitingHours: string
   story: LandmarkStory
+  distanceMeters?: number
 }
 
 export type LandmarkSummary = Omit<Landmark, 'story'> & { distanceMeters?: number }
