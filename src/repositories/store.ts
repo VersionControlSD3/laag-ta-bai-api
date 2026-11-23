@@ -1,6 +1,9 @@
-import type { Landmark, Profile, ProfileUpdate, Quest, Visit, VisitSource } from '../domain/types.js'
+import type { Landmark, Profile, ProfileUpdate, Quest, SavedPlace, UserAccount, Visit, VisitSource } from '../domain/types.js'
 
 export type NewVisit = { userId: string; landmarkId: string; source: VisitSource; xpAwarded: number }
+
+export type NewUserAccount = { email: string; passwordHash: string; displayName: string }
+export type StoredUserAccount = UserAccount & { passwordHash: string }
 
 /**
  * Data access used by the routes. Two implementations exist:
@@ -8,7 +11,8 @@ export type NewVisit = { userId: string; landmarkId: string; source: VisitSource
  * - supabaseStore: Supabase Postgres via the server-side secret key
  */
 export interface DataStore {
-  listLandmarks(): Promise<Landmark[]>
+  /** Request all pages when the caller needs to rank the full collection. */
+  listLandmarks(options?: { allPages?: boolean }): Promise<Landmark[]>
   getLandmark(id: string): Promise<Landmark | null>
   listQuests(): Promise<Quest[]>
   /** Returns the profile, creating a default one on first access. */
@@ -16,4 +20,10 @@ export interface DataStore {
   updateProfile(userId: string, update: ProfileUpdate & Partial<Pick<Profile, 'xp' | 'streakCount' | 'lastActiveDate'>>): Promise<Profile>
   listVisits(userId: string): Promise<Visit[]>
   addVisit(visit: NewVisit): Promise<Visit>
+  createUserAccount?(user: NewUserAccount): Promise<UserAccount>
+  findUserAccountByEmail?(email: string): Promise<StoredUserAccount | null>
+  findUserAccountById?(id: string): Promise<UserAccount | null>
+  savePlace(userId: string, landmarkId: string): Promise<SavedPlace>
+  listSavedPlaces(userId: string): Promise<SavedPlace[]>
+  removeSavedPlace?(userId: string, landmarkId: string): Promise<boolean>
 }

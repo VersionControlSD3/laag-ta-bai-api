@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Landmark, Profile, Quest, Visit } from '../domain/types.js'
+import type { Landmark, Profile, Quest, SavedPlace, Visit } from '../domain/types.js'
 import type { DataStore } from './store.js'
 
 type LandmarkRow = {
@@ -36,6 +36,13 @@ type VisitRow = {
   landmark_id: string
   source: Visit['source']
   xp_awarded: number
+  created_at: string
+}
+
+type SavedPlaceRow = {
+  id: string
+  user_id: string
+  landmark_id: string
   created_at: string
 }
 
@@ -76,6 +83,13 @@ const toVisit = (row: VisitRow): Visit => ({
   createdAt: row.created_at,
 })
 
+const toSavedPlace = (row: SavedPlaceRow): SavedPlace => ({
+  id: row.id,
+  userId: row.user_id,
+  landmarkId: row.landmark_id,
+  createdAt: row.created_at,
+})
+
 function check<T>(result: { data: T; error: { message: string } | null }): T {
   if (result.error) throw new Error(`Supabase query failed: ${result.error.message}`)
   return result.data
@@ -83,9 +97,24 @@ function check<T>(result: { data: T; error: { message: string } | null }): T {
 
 export function createSupabaseStore(db: SupabaseClient): DataStore {
   return {
-    async listLandmarks() {
-      const rows = check(await db.from('landmarks').select('*').order('name'))
-      return (rows as LandmarkRow[]).map(toLandmark)
+    async listLandmarks(options) {
+      if (!options?.allPages) {
+        const rows = check(await db.from('landmarks').select('*').order('name'))
+        return (rows as LandmarkRow[]).map(toLandmark)
+      }
+
+      const landmarks: Landmark[] = []
+      let afterId: string | undefined
+      for (;;) {
+        const page = db.from('landmarks').select('*').order('id').limit(500)
+        const rows = check(await (afterId === undefined ? page : page.gt('id', afterId))) as LandmarkRow[]
+        const last = rows.at(-1)
+        // A short page can still have a successor if the project caps page size.
+        if (!last) return landmarks
+
+        for (const row of rows) landmarks.push(toLandmark(row))
+        afterId = last.id
+      }
     },
     async getLandmark(id) {
       const row = check(await db.from('landmarks').select('*').eq('id', id).maybeSingle())
@@ -162,6 +191,64 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
           .single(),
       )
       return toVisit(row as VisitRow)
+    },
+    async createUserAccount(input) {
+      const { data, error } = await db.auth.admin.createUser({
+        email: input.email,
+        password: input.passwordHash,
+        email_confirm: true,
+        user_metadata: { display_name: input.displayName },
+      })
+      if (error || !data.user) throw new Error(`Supabase user creation failed: ${error?.message}`)
+      return {
+        id: data.user.id,
+        email: data.user.email ?? input.email,
+        displayName: input.displayName,
+        createdAt: data.user.created_at,
+      }
+    },
+    async findUserAccountById(id) {
+      const { data, error } = await db.auth.admin.getUserById(id)
+      if (error || !data.user) return null
+      const meta = data.user.user_metadata as { display_name?: string } | undefined
+      return {
+        id: data.user.id,
+        email: data.user.email ?? '',
+        displayName: meta?.display_name ?? 'Traveler',
+        createdAt: data.user.created_at,
+      }
+    },
+    async savePlace(userId, landmarkId) {
+      const row = check(
+        await db
+          .from('saved_places')
+          .upsert(
+            { user_id: userId, landmark_id: landmarkId },
+            { onConflict: 'user_id,landmark_id' },
+          )
+          .select('*')
+          .single(),
+      )
+      return toSavedPlace(row as SavedPlaceRow)
+    },
+    async listSavedPlaces(userId) {
+      const rows = check(
+        await db
+          .from('saved_places')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false }),
+      )
+      return (rows as SavedPlaceRow[]).map(toSavedPlace)
+    },
+    async removeSavedPlace(userId, landmarkId) {
+      const { error, count } = await db
+        .from('saved_places')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
+        .eq('landmark_id', landmarkId)
+      if (error) throw new Error(`Failed to remove saved place: ${error.message}`)
+      return (count ?? 0) > 0
     },
   }
 }

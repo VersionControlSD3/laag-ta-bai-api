@@ -72,3 +72,43 @@ describe('loadEnv', () => {
     expect(env.devAuthEnabled).toBe(false)
   })
 })
+
+describe('memoryStore user account operations', () => {
+  it('creates user account, provisions profile, and prevents duplicate emails', async () => {
+    const { createMemoryStore } = await import('../src/repositories/memoryStore.js')
+    const store = createMemoryStore()
+
+    const user = await store.createUserAccount!({
+      email: 'traveler@example.com',
+      passwordHash: 'hashed-secret',
+      displayName: 'Cebu Explorer',
+    })
+
+    expect(user.id).toBeDefined()
+    expect(user.email).toBe('traveler@example.com')
+    expect(user.displayName).toBe('Cebu Explorer')
+
+    // Profile should be automatically created (matching the DB trigger behavior)
+    const profile = await store.getOrCreateProfile(user.id)
+    expect(profile.displayName).toBe('Cebu Explorer')
+    expect(profile.xp).toBe(0)
+
+    // Querying by email and id
+    const foundByEmail = await store.findUserAccountByEmail!('Traveler@example.com')
+    expect(foundByEmail?.id).toBe(user.id)
+    expect(foundByEmail?.passwordHash).toBe('hashed-secret')
+
+    const foundById = await store.findUserAccountById!(user.id)
+    expect(foundById?.email).toBe('traveler@example.com')
+
+    // Duplicate email rejected
+    await expect(
+      store.createUserAccount!({
+        email: 'traveler@example.com',
+        passwordHash: 'another-hash',
+        displayName: 'Imposter',
+      }),
+    ).rejects.toThrow(/User already exists/)
+  })
+})
+

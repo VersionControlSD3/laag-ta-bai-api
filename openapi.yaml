@@ -20,10 +20,14 @@ security: []
 tags:
   - name: system
     description: Health and diagnostics
+  - name: auth
+    description: User authentication and registration
   - name: landmarks
     description: Landmark search and details
   - name: ai
     description: Gemini-backed scan and chat
+  - name: commute
+    description: Public transit directions to heritage landmarks
   - name: progress
     description: Profile, XP, quests and visits
 
@@ -46,6 +50,175 @@ paths:
                   ai: { type: string, enum: [gemini, stub] }
                   version: { type: string }
 
+  /v1/auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Register a new traveler account (SRS 3.1.6)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                displayName: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          email: { type: string }
+                          displayName: { type: string }
+                      session:
+                        type: [object, 'null']
+                        properties:
+                          accessToken: { type: string }
+                          refreshToken: { type: string }
+                          tokenType: { type: string }
+                          expiresIn: { type: integer }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Authenticate traveler and return session token (SRS 3.1.6)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          email: { type: string }
+                          displayName: { type: string }
+                      session:
+                        type: [object, 'null']
+                        properties:
+                          accessToken: { type: string }
+                          refreshToken: { type: string }
+                          tokenType: { type: string }
+                          expiresIn: { type: integer }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/forgot-password:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request a password recovery email
+      description: Returns a generic acknowledgement regardless of whether an email is sent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+      responses:
+        '202':
+          description: Recovery request acknowledged
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordRecoveryMessage' }
+        '400': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password using an emailed recovery token
+      description: Verify the recovery token and update its account. A new email is needed if the token has expired or was consumed by a failed update.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [tokenHash, password]
+              properties:
+                tokenHash: { type: string, minLength: 1, maxLength: 256, writeOnly: true }
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+                  writeOnly: true
+                  description: Up to 72 UTF-8 bytes, subject to the Supabase project password policy.
+      responses:
+        '200':
+          description: Password updated. The traveler can sign in again.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordRecoveryMessage' }
+        '400': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/session:
+    get:
+      operationId: getSession
+      tags: [auth]
+      summary: Verify session token and retrieve current traveler
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Active session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          email: { type: [string, 'null'] }
+                          displayName: { type: string }
+                      profile: { $ref: '#/components/schemas/Profile' }
+        '401': { $ref: '#/components/responses/Error' }
+
   /v1/landmarks:
     get:
       operationId: listLandmarks
@@ -56,9 +229,9 @@ paths:
         - { name: category, in: query, schema: { $ref: '#/components/schemas/LandmarkCategory' } }
         - { name: free, in: query, schema: { type: string, enum: ['true', 'false'] } }
         - { name: minRating, in: query, schema: { type: number, minimum: 0, maximum: 5 } }
-        - { name: lat, in: query, schema: { type: number }, description: 'With lng, adds distanceMeters and sorts nearest first' }
-        - { name: lng, in: query, schema: { type: number } }
-        - { name: radiusKm, in: query, schema: { type: number }, description: Requires lat/lng }
+        - { name: lat, in: query, schema: { type: number, minimum: -90, maximum: 90 }, description: 'Supply together with lng; adds distanceMeters and sorts nearest first' }
+        - { name: lng, in: query, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: radiusKm, in: query, schema: { type: number, exclusiveMinimum: 0 }, description: 'Applied when lat/lng are present; ignored without coordinates for existing client compatibility' }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
       responses:
         '200':
@@ -71,13 +244,39 @@ paths:
                   data: { type: array, items: { $ref: '#/components/schemas/LandmarkSummary' } }
         '400': { $ref: '#/components/responses/Error' }
 
+  /v1/landmarks/nearby:
+    get:
+      operationId: nearbyLandmarks
+      tags: [landmarks]
+      summary: Places nearby the supplied location (task 35)
+      description: |
+        Both coordinates are required. Returns landmarks within radiusKm, nearest first.
+        Defaults to a 5 km radius and 10 results. Distances are radial, not road distances.
+      parameters:
+        - { name: lat, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: lng, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: radiusKm, in: query, schema: { type: number, exclusiveMinimum: 0, default: 5 } }
+        - { $ref: '#/components/parameters/LandmarkSearch' }
+        - { $ref: '#/components/parameters/LandmarkCategory' }
+        - { $ref: '#/components/parameters/FreeAdmission' }
+        - { $ref: '#/components/parameters/MinimumRating' }
+        - { $ref: '#/components/parameters/DiscoveryLimit' }
+      responses:
+        '200': { $ref: '#/components/responses/LandmarkList' }
+        '400': { $ref: '#/components/responses/Error' }
+
   /v1/landmarks/{id}:
     get:
       operationId: getLandmark
       tags: [landmarks]
       summary: Landmark detail with categorized story (SRS 3.1.1.3, 3.1.1.4)
+      description: |
+        Returns full landmark details including the categorized story (about, significance, architecture, trivia).
+        Optional GPS coordinates calculate distanceMeters.
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string }, description: 'Landmark slug identifier' }
+        - { name: lat, in: query, schema: { type: number, minimum: -90, maximum: 90 }, description: 'Supply together with lng to compute distanceMeters' }
+        - { name: lng, in: query, schema: { type: number, minimum: -180, maximum: 180 }, description: 'Supply together with lat to compute distanceMeters' }
       responses:
         '200':
           description: Landmark
@@ -87,7 +286,39 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/Landmark' }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+
+  /v1/landmarks/popular:
+    get:
+      operationId: popularLandmarks
+      tags: [landmarks]
+      summary: Popular landmarks (task 36)
+      description: |
+        Sorts by rating descending, then visitCount descending, then id ascending.
+        Applies filters and sorting before the limit. This follows the current frontend's
+        rating-first definition of popularity.
+        Coordinates are optional and must be supplied together. radiusKm requires both.
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: 'Matches name, district or category' }
+        - { name: category, in: query, schema: { $ref: '#/components/schemas/LandmarkCategory' } }
+        - { name: free, in: query, schema: { type: string, enum: ['true', 'false'] } }
+        - { name: minRating, in: query, schema: { type: number, minimum: 0, maximum: 5 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 10 } }
+        - { name: lat, in: query, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: lng, in: query, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: radiusKm, in: query, schema: { type: number, exclusiveMinimum: 0 } }
+      responses:
+        '200':
+          description: Landmark summaries; an empty list when nothing matches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LandmarkSummary' } }
+        '400': { $ref: '#/components/responses/Error' }
 
   /v1/quests:
     get:
@@ -125,8 +356,8 @@ paths:
               required: [image]
               properties:
                 image: { type: string, format: binary, description: 'JPEG, PNG or HEIC, max 10 MB' }
-                lat: { type: number }
-                lng: { type: number }
+                lat: { type: number, minimum: -90, maximum: 90 }
+                lng: { type: number, minimum: -180, maximum: 180 }
       responses:
         '200':
           description: Scan result
@@ -138,6 +369,7 @@ paths:
                   data: { $ref: '#/components/schemas/ScanResult' }
         '400': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
 
   /v1/chat:
     post:
@@ -147,6 +379,9 @@ paths:
       description: |
         The client holds the transcript and sends it every turn; the server keeps the
         last 30 messages (15 exchanges). Rate limited to 30 requests per minute per IP.
+        The last input message must be from the user. Client timestamps are optional.
+        Replies include a server-generated createdAt and fit within the input message length limit.
+        With no Gemini key replies are explicitly labeled as stubs. AI failures return 503.
       security: [{}, { bearerAuth: [] }]
       requestBody:
         required: true
@@ -156,7 +391,7 @@ paths:
               type: object
               required: [landmarkId, messages]
               properties:
-                landmarkId: { type: string }
+                landmarkId: { type: string, minLength: 1, maxLength: 200 }
                 messages:
                   type: array
                   minItems: 1
@@ -173,20 +408,61 @@ paths:
                   data:
                     type: object
                     properties:
-                      message: { $ref: '#/components/schemas/ChatMessage' }
+                      message: { $ref: '#/components/schemas/ChatReply' }
                       progress: { oneOf: [{ $ref: '#/components/schemas/ProgressUpdate' }, { type: 'null' }] }
         '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /v1/commute:
+    post:
+      operationId: findCommute
+      tags: [commute]
+      summary: Local transit navigation to a landmark (task 36, SRS 3.1.5)
+      description: |
+        Resolves a destination from the landmark database and requests Google Routes TRANSIT
+        directions from the supplied origin. Rate limited to 20 requests/minute/IP.
+        Requires the server GOOGLE_MAPS_API_KEY with Routes API enabled. Returns no_routes
+        when Google has no coverage for that journey; never invents jeepney codes or fares.
+        Coordinates are sent to Google for this request and are not persisted by this handler.
+        Display Google's required attribution and returned transit agency attribution with directions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommuteInput' }
+      responses:
+        '200':
+          description: Transit routes or an explicit no_routes result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/CommuteResult' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+        '504': { $ref: '#/components/responses/Error' }
 
   /v1/me:
     get:
       operationId: getMe
       tags: [progress]
       summary: Current traveler's profile, rank, stats, badges and visits (SRS 3.1.6.1)
+      description: The bearer token identifies the traveler. The request does not take a user ID.
       security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Profile bundle
+          headers:
+            Cache-Control:
+              description: Prevents caching of personal profile data.
+              schema: { type: string, const: 'private, no-store' }
           content:
             application/json:
               schema:
@@ -247,8 +523,73 @@ paths:
                           visit: { $ref: '#/components/schemas/Visit' }
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  /v1/me/saved-places:
+    post:
+      operationId: savePlace
+      tags: [landmarks]
+      summary: Save a place for bookmarks and offline access (SRS 3.1.1.3.c, task 38)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [landmarkId]
+              properties:
+                landmarkId: { type: string, minLength: 1 }
+                placeId: { type: string, minLength: 1 }
+      responses:
+        '201':
+          description: Place saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SavedPlace' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+    get:
+      operationId: listSavedPlaces
+      tags: [landmarks]
+      summary: List all saved places for the authenticated traveler
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Saved places
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/SavedPlace' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/me/saved-places/{landmarkId}:
+    delete:
+      operationId: removeSavedPlace
+      tags: [landmarks]
+      summary: Remove a saved place
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: landmarkId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204':
+          description: Place removed
+        '401': { $ref: '#/components/responses/Error' }
 
 components:
+  parameters:
+    LandmarkSearch: { name: q, in: query, schema: { type: string }, description: 'Matches name, district or category' }
+    LandmarkCategory: { name: category, in: query, schema: { $ref: '#/components/schemas/LandmarkCategory' } }
+    FreeAdmission: { name: free, in: query, schema: { type: string, enum: ['true', 'false'] } }
+    MinimumRating: { name: minRating, in: query, schema: { type: number, minimum: 0, maximum: 5 } }
+    DiscoveryLimit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 10 } }
   securitySchemes:
     bearerAuth:
       type: http
@@ -256,6 +597,15 @@ components:
       description: Supabase Auth access token
 
   responses:
+    LandmarkList:
+      description: Landmark summaries; an empty list when nothing matches
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { type: array, items: { $ref: '#/components/schemas/LandmarkSummary' } }
     Error:
       description: Error
       content:
@@ -272,6 +622,16 @@ components:
                   details: {}
 
   schemas:
+    PasswordRecoveryMessage:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [message]
+          properties:
+            message: { type: string }
+
     LandmarkCategory:
       type: string
       enum: [church, fort, monument, museum, heritage_house, temple]
@@ -357,7 +717,17 @@ components:
       required: [role, content]
       properties:
         role: { type: string, enum: [user, model] }
-        content: { type: string, maxLength: 2000, description: Markdown for model replies }
+        content: { type: string, minLength: 1, maxLength: 2000, description: Markdown for model replies }
+        createdAt: { type: string, format: date-time, description: Optional client timestamp; always present on server replies }
+
+    ChatReply:
+      allOf:
+        - $ref: '#/components/schemas/ChatMessage'
+        - type: object
+          required: [createdAt]
+          properties:
+            role: { type: string, const: model }
+            createdAt: { type: string, format: date-time }
 
     Profile:
       type: object
@@ -383,6 +753,80 @@ components:
         bio: { type: [string, 'null'], maxLength: 280 }
         language: { type: string, enum: [en, ceb] }
 
+    Coordinates:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+
+    CommuteInput:
+      type: object
+      required: [origin, destinationLandmarkId]
+      properties:
+        origin: { $ref: '#/components/schemas/Coordinates' }
+        destinationLandmarkId: { type: string, minLength: 1, maxLength: 200 }
+        departureTime: { type: string, format: date-time, description: 'RFC 3339 timestamp. Accepts 7 days before through 100 days after the current time, inclusive, per Google Routes TRANSIT. Defaults to now. Values outside the window return HTTP 400 before contacting Google.' }
+        preference: { type: string, enum: [LESS_WALKING, FEWER_TRANSFERS] }
+
+    CommuteTransit:
+      type: object
+      required: [lineName, lineCode, vehicleType, headsign, departureStop, arrivalStop, departureTime, arrivalTime, stopCount, agencies]
+      properties:
+        lineName: { type: [string, 'null'] }
+        lineCode: { type: [string, 'null'] }
+        vehicleType: { type: [string, 'null'] }
+        headsign: { type: [string, 'null'] }
+        departureStop: { type: [string, 'null'] }
+        arrivalStop: { type: [string, 'null'] }
+        departureTime: { type: [string, 'null'], format: date-time }
+        arrivalTime: { type: [string, 'null'], format: date-time }
+        stopCount: { type: [integer, 'null'] }
+        agencies:
+          type: array
+          items:
+            type: object
+            required: [name, uri]
+            properties:
+              name: { type: [string, 'null'] }
+              uri: { type: [string, 'null'] }
+
+    CommuteStep:
+      type: object
+      required: [travelMode, instruction, distanceMeters, durationSeconds, transit]
+      properties:
+        travelMode: { type: string, description: 'Google travel mode, usually WALK or TRANSIT' }
+        instruction: { type: [string, 'null'] }
+        distanceMeters: { type: number, minimum: 0 }
+        durationSeconds: { type: number, minimum: 0 }
+        transit: { oneOf: [{ $ref: '#/components/schemas/CommuteTransit' }, { type: 'null' }] }
+
+    CommuteRoute:
+      type: object
+      required: [distanceMeters, durationSeconds, encodedPolyline, fareText, steps]
+      properties:
+        distanceMeters: { type: number, minimum: 0 }
+        durationSeconds: { type: number, minimum: 0 }
+        encodedPolyline: { type: [string, 'null'] }
+        fareText: { type: [string, 'null'], description: 'Localized fare from Google if known; null does not mean free' }
+        steps: { type: array, items: { $ref: '#/components/schemas/CommuteStep' } }
+
+    CommuteResult:
+      type: object
+      required: [provider, status, destination, routes]
+      properties:
+        provider: { type: string, const: google_routes }
+        status: { type: string, enum: [ok, no_routes] }
+        destination:
+          allOf:
+            - $ref: '#/components/schemas/Coordinates'
+            - type: object
+              required: [id, name]
+              properties:
+                id: { type: string }
+                name: { type: string }
+        routes: { type: array, maxItems: 4, items: { $ref: '#/components/schemas/CommuteRoute' } }
+
     Visit:
       type: object
       required: [id, userId, landmarkId, source, xpAwarded, createdAt]
@@ -399,7 +843,9 @@ components:
       required: [profile, email, rank, stats, badges, recentVisits]
       properties:
         profile: { $ref: '#/components/schemas/Profile' }
-        email: { type: [string, 'null'] }
+        email:
+          type: [string, 'null']
+          description: Email of the authenticated traveler, or null if the account has no email.
         rank: { $ref: '#/components/schemas/Rank' }
         stats:
           type: object
@@ -415,3 +861,13 @@ components:
               questId: { type: string }
               name: { type: string }
         recentVisits: { type: array, items: { $ref: '#/components/schemas/Visit' } }
+
+    SavedPlace:
+      type: object
+      required: [id, userId, landmarkId, createdAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        landmarkId: { type: string }
+        createdAt: { type: string, format: date-time }
+        landmark: { $ref: '#/components/schemas/Landmark' }

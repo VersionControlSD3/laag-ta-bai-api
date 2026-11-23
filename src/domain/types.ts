@@ -25,6 +25,7 @@ export type Landmark = {
   estimatedVisitMinutes: number
   visitingHours: string
   story: LandmarkStory
+  distanceMeters?: number
 }
 
 export type LandmarkSummary = Omit<Landmark, 'story'> & { distanceMeters?: number }
@@ -35,6 +36,13 @@ export type Quest = {
   description: string
   badgeName: string
   landmarkIds: string[]
+}
+
+export type UserAccount = {
+  id: string
+  email: string
+  displayName: string
+  createdAt: string
 }
 
 export type Profile = {
@@ -64,4 +72,11 @@ export type Visit = {
   createdAt: string
 }
 
-export type ChatMessage = { role: 'user' | 'model'; content: string }
+export type ChatMessage = { role: 'user' | 'model'; content: string; createdAt?: string }
+
+export type SavedPlace = {
+  id: string
+  userId: string
+  landmarkId: string
+  createdAt: string
+}
