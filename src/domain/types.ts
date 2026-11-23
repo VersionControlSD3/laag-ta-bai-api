@@ -55,6 +55,8 @@ export type Profile = {
   xp: number
   streakCount: number
   lastActiveDate: string | null
+  /** When the user accepted the Terms of Use; null until they do (e.g. a new Google account). */
+  termsAcceptedAt: string | null
 }
 
 export type ProfileUpdate = Partial<

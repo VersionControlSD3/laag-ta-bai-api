@@ -17,7 +17,7 @@ export interface DataStore {
   listQuests(): Promise<Quest[]>
   /** Returns the profile, creating a default one on first access. */
   getOrCreateProfile(userId: string, defaults?: { displayName?: string }): Promise<Profile>
-  updateProfile(userId: string, update: ProfileUpdate & Partial<Pick<Profile, 'xp' | 'streakCount' | 'lastActiveDate'>>): Promise<Profile>
+  updateProfile(userId: string, update: ProfileUpdate & Partial<Pick<Profile, 'xp' | 'streakCount' | 'lastActiveDate' | 'termsAcceptedAt'>>): Promise<Profile>
   listVisits(userId: string): Promise<Visit[]>
   addVisit(visit: NewVisit): Promise<Visit>
   createUserAccount?(user: NewUserAccount): Promise<UserAccount>

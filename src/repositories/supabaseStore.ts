@@ -28,6 +28,7 @@ type ProfileRow = {
   xp: number
   streak_count: number
   last_active_date: string | null
+  terms_accepted_at: string | null
 }
 
 type VisitRow = {
@@ -72,6 +73,7 @@ const toProfile = (row: ProfileRow): Profile => ({
   xp: row.xp,
   streakCount: row.streak_count,
   lastActiveDate: row.last_active_date,
+  termsAcceptedAt: row.terms_accepted_at,
 })
 
 const toVisit = (row: VisitRow): Visit => ({
@@ -168,6 +170,7 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
       if (update.xp !== undefined) row.xp = update.xp
       if (update.streakCount !== undefined) row.streak_count = update.streakCount
       if (update.lastActiveDate !== undefined) row.last_active_date = update.lastActiveDate
+      if (update.termsAcceptedAt !== undefined) row.terms_accepted_at = update.termsAcceptedAt
       const updated = check(await db.from('profiles').update(row).eq('id', userId).select('*').single())
       return toProfile(updated as ProfileRow)
     },
