@@ -64,6 +64,18 @@ const popularQuery = listQuery.safeExtend({
   'Supply lat and lng together; radiusKm requires both coordinates.',
 )
 
+const landmarkParams = z.object({
+  id: z.string().trim().min(1, 'Landmark ID cannot be empty.'),
+})
+
+const landmarkDetailQuery = z.object({
+  lat: latitude.optional(),
+  lng: longitude.optional(),
+}).refine(
+  (query) => (query.lat === undefined) === (query.lng === undefined),
+  'Supply lat and lng together.',
+)
+
 export function landmarksRouter(ctx: AppContext) {
   const router = Router()
 
@@ -103,9 +115,20 @@ export function landmarksRouter(ctx: AppContext) {
   })
 
   router.get('/landmarks/:id', async (req, res) => {
-    const landmark = await ctx.store.getLandmark(req.params.id)
+    const { id } = landmarkParams.parse(req.params)
+    const query = landmarkDetailQuery.parse(req.query)
+    const landmark = await ctx.store.getLandmark(id)
     if (!landmark) throw notFound('Landmark not found')
-    res.json({ data: landmark })
+
+    const origin = query.lat !== undefined && query.lng !== undefined
+      ? { latitude: query.lat, longitude: query.lng }
+      : undefined
+
+    const data = origin
+      ? { ...landmark, distanceMeters: distanceMeters(origin, landmark) }
+      : landmark
+
+    res.json({ data })
   })
 
   return router
