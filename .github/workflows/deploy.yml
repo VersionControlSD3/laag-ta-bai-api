@@ -45,6 +45,9 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
+      - name: Set staging branch for Vercel deployment metadata
+        if: env.IS_PROD != 'true' && (github.event_name == 'workflow_run' || github.ref == 'refs/heads/staging')
+        run: git switch -c staging
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -73,8 +76,12 @@ jobs:
           supabase db push
 
       - run: npm install --global vercel@64
-      - name: Pull Vercel settings
-        run: vercel pull --yes --environment=${{ env.IS_PROD == 'true' && 'production' || 'preview' }} --token="$VERCEL_TOKEN"
+      - name: Pull Vercel production settings
+        if: env.IS_PROD == 'true'
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Pull Vercel staging settings
+        if: env.IS_PROD != 'true'
+        run: vercel pull --yes --environment=preview --git-branch=staging --token="$VERCEL_TOKEN"
       - name: Build
         run: vercel build ${{ env.IS_PROD == 'true' && '--prod' || '' }} --token="$VERCEL_TOKEN"
       - name: Deploy
