@@ -36,6 +36,22 @@ describe('GET /v1/quests - Quests API (Task 41)', () => {
       }
     })
 
+    it('keeps a quest with zero landmarks incomplete', async () => {
+      const emptyQuest = {
+        id: 'empty-quest',
+        title: 'Empty Quest',
+        description: 'A quest with no landmarks',
+        badgeName: 'Empty Quest Badge',
+        landmarkIds: [],
+      }
+      vi.spyOn(ctx.store, 'listQuests').mockResolvedValue([emptyQuest])
+
+      const res = await request(app).get('/v1/quests')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toEqual([{ ...emptyQuest, completed: false, completedLandmarkIds: [] }])
+    })
+
     it('returns quests sorted deterministically by title', async () => {
       const res = await request(app).get('/v1/quests')
       expect(res.status).toBe(200)

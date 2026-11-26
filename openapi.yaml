@@ -328,7 +328,8 @@ paths:
       description: |
         Lists all heritage quests with the caller's progress.
         Unauthenticated travelers receive all quests with empty completion progress.
-        When signed in, completedLandmarkIds and completed status are evaluated from the traveler's verified visits.
+        When signed in, completedLandmarkIds and completed status are evaluated from the traveler's recorded visits,
+        including manual check-ins.
       security: [{}, { bearerAuth: [] }]
       responses:
         '200':
