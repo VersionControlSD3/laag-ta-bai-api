@@ -122,6 +122,25 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
       const row = check(await db.from('landmarks').select('*').eq('id', id).maybeSingle())
       return row ? toLandmark(row as LandmarkRow) : null
     },
+    async saveLandmark(landmark) {
+      const row: LandmarkRow = {
+        id: landmark.id,
+        name: landmark.name,
+        category: landmark.category,
+        district: landmark.district,
+        latitude: landmark.latitude,
+        longitude: landmark.longitude,
+        image_url: landmark.imageUrl,
+        admission_fee: landmark.admissionFee,
+        rating: landmark.rating,
+        visit_count: landmark.visitCount,
+        estimated_visit_minutes: landmark.estimatedVisitMinutes,
+        visiting_hours: landmark.visitingHours,
+        story: landmark.story,
+      }
+      const saved = check(await db.from('landmarks').upsert(row).select('*').single())
+      return toLandmark(saved as LandmarkRow)
+    },
     async listQuests() {
       const rows = check(
         await db

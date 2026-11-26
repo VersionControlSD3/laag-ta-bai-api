@@ -19,6 +19,15 @@ export function createMemoryStore(): DataStore {
     async getLandmark(id) {
       return landmarks.find((landmark) => landmark.id === id) ?? null
     },
+    async saveLandmark(landmark) {
+      const index = landmarks.findIndex((l) => l.id === landmark.id)
+      if (index >= 0) {
+        landmarks[index] = landmark
+      } else {
+        landmarks.push(landmark)
+      }
+      return landmark
+    },
     async listQuests() {
       return [...quests].sort((a, b) => a.title.localeCompare(b.title))
     },

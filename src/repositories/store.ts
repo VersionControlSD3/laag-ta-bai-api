@@ -14,6 +14,7 @@ export interface DataStore {
   /** Request all pages when the caller needs to rank the full collection. */
   listLandmarks(options?: { allPages?: boolean }): Promise<Landmark[]>
   getLandmark(id: string): Promise<Landmark | null>
+  saveLandmark(landmark: Landmark): Promise<Landmark>
   listQuests(): Promise<Quest[]>
   /** Returns the profile, creating a default one on first access. */
   getOrCreateProfile(userId: string, defaults?: { displayName?: string }): Promise<Profile>

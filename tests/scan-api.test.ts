@@ -283,4 +283,143 @@ describe('POST /v1/scan - Scan-to-Story API', () => {
       expect(throttled.body.error.code).toBe('rate_limited')
     })
   })
+
+  describe('Dynamic AI Discovery of Uncurated Landmarks', () => {
+    it('discovers and automatically saves an uncurated Cebu landmark to the database', async () => {
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({
+        landmarkId: null,
+        confidence: 0.94,
+        discovered: {
+          name: 'Cebu Provincial Capitol',
+          category: 'monument',
+          district: 'Capitol Site, Cebu City',
+          latitude: 10.3168,
+          longitude: 123.8907,
+          visitingHours: '8:00 AM - 5:00 PM',
+          admissionFee: 0,
+          estimatedVisitMinutes: 40,
+          story: {
+            about: 'The seat of the provincial government of Cebu, designed by Juan M. Arellano.',
+            significance: 'One of the finest Art Deco government buildings in the Philippines, built in 1937.',
+            architecture: 'Neoclassical and Art Deco fusion featuring a semicircular colonnade and high central dome.',
+            trivia: 'Its facade bears the inscription: "The authority of the government emanates from the people."',
+          },
+        },
+      })
+
+      const res = await request(app)
+        .post('/v1/scan')
+        .set(auth)
+        .field('lat', '10.3168')
+        .field('lng', '123.8907')
+        .attach('image', PNG_IMAGE, { filename: 'capitol.png', contentType: 'image/png' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.data.status).toBe('identified')
+      expect(res.body.data.confidence).toBe(0.94)
+      expect(res.body.data.landmark).toMatchObject({
+        id: 'cebu-provincial-capitol',
+        name: 'Cebu Provincial Capitol',
+        category: 'monument',
+        district: 'Capitol Site, Cebu City',
+        latitude: 10.3168,
+        longitude: 123.8907,
+        story: {
+          about: expect.stringContaining('seat of the provincial government'),
+        },
+      })
+      expect(res.body.data.progress).toMatchObject({
+        xpAwarded: 50,
+      })
+
+      // The new landmark should now be in the store and queryable
+      const fetched = await ctx.store.getLandmark('cebu-provincial-capitol')
+      expect(fetched).not.toBeNull()
+      expect(fetched?.name).toBe('Cebu Provincial Capitol')
+
+      // It should also work on the GET /v1/landmarks/:id endpoint
+      const detailRes = await request(app).get('/v1/landmarks/cebu-provincial-capitol')
+      expect(detailRes.status).toBe(200)
+      expect(detailRes.body.data.name).toBe('Cebu Provincial Capitol')
+
+      // It should also be conversational via POST /v1/chat
+      const chatRes = await request(app)
+        .post('/v1/chat')
+        .send({
+          landmarkId: 'cebu-provincial-capitol',
+          messages: [{ role: 'user', content: 'What style is this building?' }],
+        })
+      expect(chatRes.status).toBe(200)
+      expect(chatRes.body.data.message.role).toBe('model')
+    })
+
+    it('reuses existing landmark record if an uncurated landmark was already discovered', async () => {
+      // First save it
+      await ctx.store.saveLandmark({
+        id: 'sirao-flower-garden',
+        name: 'Sirao Flower Garden',
+        category: 'monument',
+        district: 'Busay, Cebu City',
+        latitude: 10.4284,
+        longitude: 123.8687,
+        imageUrl: null,
+        admissionFee: 100,
+        rating: 4.5,
+        visitCount: 5,
+        estimatedVisitMinutes: 60,
+        visitingHours: '6:00 AM - 6:30 PM',
+        story: {
+          about: 'A scenic flower farm known as the Little Amsterdam of Cebu.',
+          significance: 'Popularized celosia flowers in Cebu tourism.',
+          architecture: 'Terraced flower gardens with windmills and viewing decks.',
+          trivia: 'The farm started in 2015 when visitors began flocking to take photos before harvest.',
+        },
+      })
+
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({
+        landmarkId: null,
+        confidence: 0.91,
+        discovered: {
+          name: 'Sirao Flower Garden',
+          category: 'monument',
+          district: 'Busay, Cebu City',
+          story: {
+            about: 'New scan story.',
+            significance: 'Significance.',
+            architecture: 'Architecture.',
+            trivia: 'Trivia.',
+          },
+        },
+      })
+
+      const res = await request(app)
+        .post('/v1/scan')
+        .set(auth)
+        .field('lat', '10.4284')
+        .field('lng', '123.8687')
+        .attach('image', PNG_IMAGE, { filename: 'sirao.png', contentType: 'image/png' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.data.status).toBe('identified')
+      expect(res.body.data.landmark.id).toBe('sirao-flower-garden')
+      expect(res.body.data.landmark.name).toBe('Sirao Flower Garden')
+      expect(res.body.data.landmark.story.about).toBe('A scenic flower farm known as the Little Amsterdam of Cebu.')
+    })
+
+    it('returns unrecognized when image is not a Cebu landmark (discovered is null)', async () => {
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({
+        landmarkId: null,
+        confidence: 0.25,
+        discovered: null,
+      })
+
+      const res = await request(app)
+        .post('/v1/scan')
+        .attach('image', PNG_IMAGE, { filename: 'shoes.png', contentType: 'image/png' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.data.status).toBe('unrecognized')
+      expect(res.body.data.landmark).toBeNull()
+    })
+  })
 })
