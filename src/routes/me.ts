@@ -13,6 +13,8 @@ const profileUpdate = z
     nationality: z.string().trim().max(60).nullable(),
     bio: z.string().trim().max(280).nullable(),
     language: z.enum(['en', 'ceb']),
+    // The server stamps the time; clients can only accept, never backdate or withdraw.
+    acceptTerms: z.literal(true),
   })
   .partial()
   .strict()
@@ -74,9 +76,11 @@ export function meRouter(ctx: AppContext) {
   })
 
   router.patch('/me', async (req, res) => {
-    const update = profileUpdate.parse(req.body)
-    await ctx.store.getOrCreateProfile(req.user!.id, { displayName: req.user!.displayName })
-    const profile = await ctx.store.updateProfile(req.user!.id, update)
+    const { acceptTerms, ...update } = profileUpdate.parse(req.body)
+    const current = await ctx.store.getOrCreateProfile(req.user!.id, { displayName: req.user!.displayName })
+    // Keep the first acceptance as the consent record.
+    const stamp = acceptTerms && !current.termsAcceptedAt ? { termsAcceptedAt: new Date().toISOString() } : {}
+    const profile = await ctx.store.updateProfile(req.user!.id, { ...update, ...stamp })
     res.json({ data: profile })
   })
 

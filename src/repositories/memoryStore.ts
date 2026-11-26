@@ -44,6 +44,7 @@ export function createMemoryStore(): DataStore {
           xp: 0,
           streakCount: 0,
           lastActiveDate: null,
+          termsAcceptedAt: null,
         }
         profiles.set(userId, profile)
       }

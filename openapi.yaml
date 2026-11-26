@@ -737,7 +737,7 @@ components:
 
     Profile:
       type: object
-      required: [id, displayName, avatarUrl, nationality, bio, language, xp, streakCount, lastActiveDate]
+      required: [id, displayName, avatarUrl, nationality, bio, language, xp, streakCount, lastActiveDate, termsAcceptedAt]
       properties:
         id: { type: string }
         displayName: { type: string }
@@ -748,6 +748,10 @@ components:
         xp: { type: integer }
         streakCount: { type: integer }
         lastActiveDate: { type: [string, 'null'], format: date }
+        termsAcceptedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the user accepted the Terms of Use. Null until they do, for example right after a first Google sign-in; the app asks them to complete their profile first.
 
     ProfileUpdate:
       type: object
@@ -758,6 +762,10 @@ components:
         nationality: { type: [string, 'null'], maxLength: 60 }
         bio: { type: [string, 'null'], maxLength: 280 }
         language: { type: string, enum: [en, ceb] }
+        acceptTerms:
+          type: boolean
+          const: true
+          description: Records Terms of Use acceptance. The server sets `termsAcceptedAt` to the current time, once; later calls keep the first time.
 
     Coordinates:
       type: object

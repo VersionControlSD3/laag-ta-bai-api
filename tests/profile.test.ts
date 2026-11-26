@@ -67,3 +67,32 @@ describe('GET /v1/me', () => {
     expect((await request(app).get('/v1/me').set('Authorization', 'Bearer dev:verified-user')).status).toBe(401)
   })
 })
+
+describe('PATCH /v1/me terms acceptance', () => {
+  it('stamps termsAcceptedAt once and keeps the first acceptance', async () => {
+    const app = createApp(createContext(loadEnv()))
+    const auth = { Authorization: 'Bearer dev:new-google-user' }
+
+    const before = await request(app).get('/v1/me').set(auth)
+    expect(before.body.data.profile.termsAcceptedAt).toBeNull()
+
+    const first = await request(app).patch('/v1/me').set(auth).send({ nationality: 'Filipino', acceptTerms: true })
+    expect(first.status).toBe(200)
+    expect(first.body.data).toMatchObject({ nationality: 'Filipino' })
+    const acceptedAt = first.body.data.termsAcceptedAt
+    expect(new Date(acceptedAt).toString()).not.toBe('Invalid Date')
+
+    const again = await request(app).patch('/v1/me').set(auth).send({ acceptTerms: true, bio: 'Hi' })
+    expect(again.body.data.termsAcceptedAt).toBe(acceptedAt)
+
+    const other = await request(app).patch('/v1/me').set(auth).send({ bio: 'Still accepted' })
+    expect(other.body.data.termsAcceptedAt).toBe(acceptedAt)
+  })
+
+  it('rejects anything but acceptTerms: true, including a client timestamp', async () => {
+    const app = createApp(createContext(loadEnv()))
+    const auth = { Authorization: 'Bearer dev:someone' }
+    expect((await request(app).patch('/v1/me').set(auth).send({ acceptTerms: false })).status).toBe(400)
+    expect((await request(app).patch('/v1/me').set(auth).send({ termsAcceptedAt: '2020-01-01T00:00:00Z' })).status).toBe(400)
+  })
+})
