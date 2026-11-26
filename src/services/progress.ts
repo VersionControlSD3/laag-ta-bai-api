@@ -23,7 +23,7 @@ export function questProgress(quests: Quest[], visits: Visit[]): QuestProgress[]
     return {
       ...quest,
       completedLandmarkIds,
-      completed: completedLandmarkIds.length === quest.landmarkIds.length,
+      completed: quest.landmarkIds.length > 0 && completedLandmarkIds.length === quest.landmarkIds.length,
     }
   })
 }
