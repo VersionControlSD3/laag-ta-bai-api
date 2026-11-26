@@ -2,7 +2,23 @@ import { GoogleGenAI, HarmBlockThreshold, HarmCategory, Type } from '@google/gen
 import type { ChatMessage, Landmark } from '../domain/types.js'
 import { withRetry } from './retry.js'
 
-export type Identification = { landmarkId: string | null; confidence: number }
+export type DiscoveredLandmark = {
+  name: string
+  category: Landmark['category']
+  district: string
+  latitude?: number | null
+  longitude?: number | null
+  visitingHours?: string | null
+  admissionFee?: number | null
+  estimatedVisitMinutes?: number | null
+  story: Landmark['story']
+}
+
+export type Identification = {
+  landmarkId: string | null
+  confidence: number
+  discovered?: DiscoveredLandmark | null
+}
 
 export interface AiService {
   readonly mode: 'gemini' | 'stub'
@@ -60,10 +76,14 @@ export function createGeminiService(apiKey: string, model: string): AiService {
               parts: [
                 { inlineData: { mimeType, data: image.toString('base64') } },
                 {
-                  text:
-                    'Identify which Cebu heritage landmark from this list appears in the photo. ' +
-                    'Reply with landmarkId null if none of them matches.\n' +
+                  text: [
+                    'You are an expert visual guide identifying heritage landmarks, historic monuments, shrines, museums, churches, and cultural attractions in Cebu, Philippines.',
+                    'First, check if the photo matches one of the known candidates from this list:',
                     list,
+                    'If it matches a candidate from the list, return that candidate\'s landmarkId in "landmarkId" and confidence (0 to 1).',
+                    'If it does NOT match any candidate in the list, but IS a recognized heritage site, landmark, monument, or cultural attraction in Cebu, set landmarkId to null, confidence (0 to 1), and provide the details in "discovered" with a verified or historically grounded story (about, significance, architecture, trivia), appropriate category (church, fort, monument, museum, heritage_house, temple), and district or municipality in Cebu.',
+                    'If the image is NOT a landmark in Cebu (for example, a personal selfie, random object, animal, vehicle, ordinary street, or a place outside Cebu), return landmarkId: null and discovered: null with low confidence.',
+                  ].join('\n'),
                 },
               ],
             },
@@ -75,6 +95,33 @@ export function createGeminiService(apiKey: string, model: string): AiService {
               properties: {
                 landmarkId: { type: Type.STRING, nullable: true },
                 confidence: { type: Type.NUMBER, description: '0 to 1' },
+                discovered: {
+                  type: Type.OBJECT,
+                  nullable: true,
+                  properties: {
+                    name: { type: Type.STRING },
+                    category: {
+                      type: Type.STRING,
+                      enum: ['church', 'fort', 'monument', 'museum', 'heritage_house', 'temple'],
+                    },
+                    district: { type: Type.STRING },
+                    latitude: { type: Type.NUMBER, nullable: true },
+                    longitude: { type: Type.NUMBER, nullable: true },
+                    visitingHours: { type: Type.STRING, nullable: true },
+                    admissionFee: { type: Type.NUMBER, nullable: true },
+                    story: {
+                      type: Type.OBJECT,
+                      properties: {
+                        about: { type: Type.STRING },
+                        significance: { type: Type.STRING },
+                        architecture: { type: Type.STRING },
+                        trivia: { type: Type.STRING },
+                      },
+                      required: ['about', 'significance', 'architecture', 'trivia'],
+                    },
+                  },
+                  required: ['name', 'category', 'district', 'story'],
+                },
               },
               required: ['landmarkId', 'confidence'],
             },
@@ -92,6 +139,7 @@ export function createGeminiService(apiKey: string, model: string): AiService {
       return {
         landmarkId: known ? (parsed.landmarkId ?? null) : null,
         confidence: Math.min(Math.max(Number(parsed.confidence) || 0, 0), 1),
+        discovered: parsed.discovered ?? null,
       }
     },
     async chat({ landmark, messages }) {
@@ -124,7 +172,7 @@ export function createStubAiService(): AiService {
   return {
     mode: 'stub',
     async identifyLandmark({ candidates }) {
-      return { landmarkId: candidates[0]?.id ?? null, confidence: 0.92 }
+      return { landmarkId: candidates[0]?.id ?? null, confidence: 0.92, discovered: null }
     },
     async chat({ landmark, messages }) {
       const question = messages.at(-1)?.content ?? ''

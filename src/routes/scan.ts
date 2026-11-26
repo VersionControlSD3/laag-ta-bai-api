@@ -4,6 +4,7 @@ import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import type { AppContext } from '../context.js'
 import { distanceMeters } from '../domain/geo.js'
+import { LANDMARK_CATEGORIES, type Landmark } from '../domain/types.js'
 import { badRequest, HttpError } from '../lib/errors.js'
 import { optionalAuth } from '../middleware/auth.js'
 import { recordEngagement } from '../services/progress.js'
@@ -76,7 +77,53 @@ export function scanRouter(ctx: AppContext) {
       throw new HttpError(503, 'ai_unavailable', 'The landmark scanner is temporarily unavailable. Please try again later.')
     }
 
-    const match = ordered.find((l) => l.id === result.landmarkId) ?? null
+    let match = ordered.find((l) => l.id === result.landmarkId) ?? null
+
+    // If Gemini identified a Cebu heritage landmark that was not in our initial candidate list,
+    // dynamically register and save it to the store so travelers can view it, chat about it,
+    // and visit it.
+    if (!match && result.discovered && result.confidence >= MIN_CONFIDENCE) {
+      const slug =
+        result.discovered.name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '') || `landmark-${Date.now()}`
+
+      const existing = await ctx.store.getLandmark(slug)
+      if (existing) {
+        match = existing
+      } else {
+        const category = (LANDMARK_CATEGORIES as readonly string[]).includes(result.discovered.category)
+          ? result.discovered.category
+          : 'monument'
+        const latitude = origin?.latitude ?? result.discovered.latitude ?? 10.3157
+        const longitude = origin?.longitude ?? result.discovered.longitude ?? 123.8854
+
+        const newLandmark: Landmark = {
+          id: slug,
+          name: result.discovered.name.trim(),
+          category,
+          district: result.discovered.district.trim(),
+          latitude,
+          longitude,
+          imageUrl: null,
+          admissionFee: Math.max(0, Number(result.discovered.admissionFee ?? 0)),
+          rating: 4.5,
+          visitCount: 0,
+          estimatedVisitMinutes: Math.max(10, Number(result.discovered.estimatedVisitMinutes ?? 30)),
+          visitingHours: result.discovered.visitingHours?.trim() || 'Open daily',
+          story: {
+            about: result.discovered.story.about.trim(),
+            significance: result.discovered.story.significance.trim(),
+            architecture: result.discovered.story.architecture.trim(),
+            trivia: result.discovered.story.trivia.trim(),
+          },
+        }
+        match = await ctx.store.saveLandmark(newLandmark)
+      }
+    }
 
     let status: 'identified' | 'low_confidence' | 'not_nearby' | 'unrecognized'
     if (!match) status = 'unrecognized'
