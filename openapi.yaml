@@ -325,6 +325,11 @@ paths:
       operationId: listQuests
       tags: [progress]
       summary: Quests, with the caller's progress when signed in (SRS 3.1.3.3)
+      description: |
+        Lists all heritage quests with the caller's progress.
+        Unauthenticated travelers receive all quests with empty completion progress.
+        When signed in, completedLandmarkIds and completed status are evaluated from the traveler's recorded visits,
+        including manual check-ins.
       security: [{}, { bearerAuth: [] }]
       responses:
         '200':
@@ -333,6 +338,7 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [data]
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/QuestProgress' } }
 
