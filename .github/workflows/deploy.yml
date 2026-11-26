@@ -73,7 +73,7 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
-          supabase db push --remote --yes
+          supabase db push
 
       - run: npm install --global vercel@64
       - name: Pull Vercel production settings
