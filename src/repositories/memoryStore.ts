@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { LANDMARKS, QUESTS } from '../data/seed.js'
 import type { Profile, SavedPlace, UserAccount, Visit } from '../domain/types.js'
-import type { DataStore, NewUserAccount, StoredUserAccount } from './store.js'
+import { phtDate } from '../domain/xp.js'
+import { DuplicateRewardError, type DataStore, type NewUserAccount, type StoredUserAccount } from './store.js'
 
 export function createMemoryStore(): DataStore {
   const landmarks = structuredClone(LANDMARKS)
@@ -61,8 +62,33 @@ export function createMemoryStore(): DataStore {
         .filter((visit) => visit.userId === userId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     },
+    async recordReward({ streakCount, lastActiveDate, ...input }) {
+      // Mirrors public.record_visit: validate first so a failure writes nothing.
+      if (!profiles.has(input.userId)) throw new Error(`profile ${input.userId} not found`)
+      const visit = await this.addVisit(input) // duplicate check + insert run without yielding
+      // No await between reading and writing the profile, so concurrent
+      // rewards cannot overwrite each other's XP.
+      const current = profiles.get(input.userId)!
+      const profile = { ...current, xp: current.xp + input.xpAwarded, streakCount, lastActiveDate }
+      profiles.set(input.userId, profile)
+      return { visit, profile }
+    },
     async addVisit(input) {
-      const visit: Visit = { id: randomUUID(), createdAt: new Date().toISOString(), ...input }
+      const createdAt = new Date().toISOString()
+      // Mirrors the visits_one_reward_per_day unique index.
+      if (
+        input.xpAwarded > 0 &&
+        visits.some(
+          (v) =>
+            v.userId === input.userId &&
+            v.landmarkId === input.landmarkId &&
+            v.xpAwarded > 0 &&
+            phtDate(new Date(v.createdAt)) === phtDate(new Date(createdAt)),
+        )
+      ) {
+        throw new DuplicateRewardError()
+      }
+      const visit: Visit = { id: randomUUID(), createdAt, ...input }
       visits.push(visit)
       const landmark = landmarks.find((l) => l.id === input.landmarkId)
       if (landmark) landmark.visitCount += 1

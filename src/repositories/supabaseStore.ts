@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Landmark, Profile, Quest, SavedPlace, Visit } from '../domain/types.js'
-import type { DataStore } from './store.js'
+import { DuplicateRewardError, type DataStore } from './store.js'
+
+const UNIQUE_VIOLATION = '23505'
+const ONE_REWARD_PER_DAY_INDEX = 'visits_one_reward_per_day'
 
 type LandmarkRow = {
   id: string
@@ -199,20 +202,37 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
       )
       return (rows as VisitRow[]).map(toVisit)
     },
+    async recordReward(reward) {
+      // record_visit inserts the visit and adds XP + streak in one transaction
+      // (migration 20261128110000_xp_race_guards.sql).
+      const result = check(
+        await db.rpc('record_visit', {
+          p_user_id: reward.userId,
+          p_landmark_id: reward.landmarkId,
+          p_source: reward.source,
+          p_xp: reward.xpAwarded,
+          p_streak_count: reward.streakCount,
+          p_last_active_date: reward.lastActiveDate,
+        }),
+      ) as { duplicate: true } | { duplicate: false; visit: VisitRow; profile: ProfileRow }
+      if (result.duplicate) throw new DuplicateRewardError()
+      return { visit: toVisit(result.visit), profile: toProfile(result.profile) }
+    },
     async addVisit(input) {
-      const row = check(
-        await db
-          .from('visits')
-          .insert({
-            user_id: input.userId,
-            landmark_id: input.landmarkId,
-            source: input.source,
-            xp_awarded: input.xpAwarded,
-          })
-          .select('*')
-          .single(),
-      )
-      return toVisit(row as VisitRow)
+      const result = await db
+        .from('visits')
+        .insert({
+          user_id: input.userId,
+          landmark_id: input.landmarkId,
+          source: input.source,
+          xp_awarded: input.xpAwarded,
+        })
+        .select('*')
+        .single()
+      if (result.error?.code === UNIQUE_VIOLATION && result.error.message.includes(ONE_REWARD_PER_DAY_INDEX)) {
+        throw new DuplicateRewardError()
+      }
+      return toVisit(check(result) as VisitRow)
     },
     async createUserAccount(input) {
       const { data, error } = await db.auth.admin.createUser({

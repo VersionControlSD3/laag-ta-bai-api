@@ -11,7 +11,14 @@ declare module 'express-serve-static-core' {
 }
 
 export type AuthOptions = {
+  /** Shared client for verifying access tokens. Never sign anyone in on it. */
   supabase: SupabaseClient | null
+  /**
+   * Returns a new client for calls that install a user session (sign-up,
+   * sign-in). Sessions live in the client, so on a shared client they would
+   * leak into every later request on the same warm instance.
+   */
+  createSessionClient?: () => SupabaseClient
   devAuthEnabled: boolean
   findDevAccount?: (id: string) => Promise<AuthUser | null>
 }

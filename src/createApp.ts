@@ -26,11 +26,14 @@ export function createContext(env: Env): AppContext {
   const { SUPABASE_URL: url, SUPABASE_SECRET_KEY: secretKey, PASSWORD_RESET_REDIRECT_URL: redirectTo } = env
   const createAuthClient = url && secretKey ? () => createSupabaseAdmin(url, secretKey) : undefined
   const supabase = createAuthClient?.() ?? null
+  // The store gets its own client that never handles auth calls, so its
+  // queries always run with the secret key (bypassing RLS) and never as a user.
+  const storeClient = env.dataSource === 'supabase' ? (createAuthClient?.() ?? null) : null
   return {
-    store: env.dataSource === 'supabase' && supabase ? createSupabaseStore(supabase) : createMemoryStore(),
+    store: storeClient ? createSupabaseStore(storeClient) : createMemoryStore(),
     ai: env.GEMINI_API_KEY ? createGeminiService(env.GEMINI_API_KEY, env.GEMINI_MODEL) : createStubAiService(),
     commute: env.GOOGLE_MAPS_API_KEY ? createGoogleRoutesService(env.GOOGLE_MAPS_API_KEY) : createUnavailableCommuteService(),
-    auth: { supabase, devAuthEnabled: env.devAuthEnabled },
+    auth: { supabase, devAuthEnabled: env.devAuthEnabled, createSessionClient: createAuthClient },
     passwordRecovery: createAuthClient && redirectTo ? { createAuthClient, redirectTo } : undefined,
     corsOrigins: env.CORS_ORIGINS,
     dataSource: env.dataSource,

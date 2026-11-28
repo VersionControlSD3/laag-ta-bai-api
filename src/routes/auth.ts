@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
@@ -22,6 +23,20 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 })
 
+/**
+ * A request-scoped client for sign-up / sign-in. signUp and signInWithPassword
+ * store the user's session in the client; on the shared client that made every
+ * later query on the instance run as that user under RLS (QA #50: "new row
+ * violates row-level security policy for table visits").
+ */
+function sessionClient(ctx: AppContext): SupabaseClient | null {
+  if (!ctx.auth.supabase) return null
+  if (!ctx.auth.createSessionClient) {
+    throw new Error('auth.createSessionClient is required when Supabase auth is enabled')
+  }
+  return ctx.auth.createSessionClient()
+}
+
 export function authRouter(ctx: AppContext) {
   const router = Router()
   router.use('/auth', passwordRecoveryRouter(ctx.passwordRecovery))
@@ -43,10 +58,11 @@ export function authRouter(ctx: AppContext) {
   router.post('/auth/signup', async (req, res) => {
     const { email, password, displayName } = signupSchema.parse(req.body)
 
-    if (ctx.auth.supabase) {
+    const authClient = sessionClient(ctx)
+    if (authClient) {
       // Supabase would answer a taken email as if it were new (and email the owner), so check first.
       if (await ctx.store.isEmailRegistered(email)) throw conflict(EMAIL_TAKEN)
-      const { data, error } = await ctx.auth.supabase.auth.signUp({
+      const { data, error } = await authClient.auth.signUp({
         email,
         password,
         options: {
@@ -122,8 +138,9 @@ export function authRouter(ctx: AppContext) {
   router.post('/auth/login', async (req, res) => {
     const { email, password } = loginSchema.parse(req.body)
 
-    if (ctx.auth.supabase) {
-      const { data, error } = await ctx.auth.supabase.auth.signInWithPassword({
+    const authClient = sessionClient(ctx)
+    if (authClient) {
+      const { data, error } = await authClient.auth.signInWithPassword({
         email,
         password,
       })

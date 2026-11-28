@@ -1,6 +1,6 @@
 import { nextStreak, phtDate, rankFor, XP_PER_ENGAGEMENT, type RankInfo } from '../domain/xp.js'
 import type { Profile, Quest, Visit, VisitSource } from '../domain/types.js'
-import type { DataStore } from '../repositories/store.js'
+import { DuplicateRewardError, type DataStore } from '../repositories/store.js'
 
 export type QuestProgress = Quest & {
   completedLandmarkIds: string[]
@@ -48,17 +48,36 @@ export async function recordEngagement(
   ])
 
   const today = phtDate(now)
-  const alreadyToday = visits.some(
-    (visit) => visit.landmarkId === landmarkId && phtDate(new Date(visit.createdAt)) === today && visit.xpAwarded > 0,
-  )
-  const xpAwarded = alreadyToday ? 0 : XP_PER_ENGAGEMENT
+  const findRewardedToday = (list: Visit[]) =>
+    list.find((visit) => visit.landmarkId === landmarkId && visit.xpAwarded > 0 && phtDate(new Date(visit.createdAt)) === today)
 
+  // A same-day repeat earns nothing and changes nothing, so reuse the rewarded
+  // visit instead of inserting a duplicate row (which would also inflate the
+  // landmark's visit_count).
+  const repeat = (visit: Visit): EngagementResult => ({
+    visit, xpAwarded: 0, profile, rank: rankFor(profile.xp), leveledUp: false, newBadges: [],
+  })
+  const rewardedToday = findRewardedToday(visits)
+  if (rewardedToday) return repeat(rewardedToday)
+
+  const xpAwarded = XP_PER_ENGAGEMENT
   const before = questProgress(quests, visits)
-  const visit = await store.addVisit({ userId, landmarkId, source, xpAwarded })
-  const after = questProgress(quests, [...visits, visit])
-
   const streak = nextStreak(profile, now)
-  const updated = await store.updateProfile(userId, { xp: profile.xp + xpAwarded, ...streak })
+  let saved: { visit: Visit; profile: Profile }
+  try {
+    // Visit, XP and streak are written together or not at all, so a failure
+    // can't leave a rewarded visit whose XP was never credited.
+    saved = await store.recordReward({ userId, landmarkId, source, xpAwarded, ...streak })
+  } catch (err) {
+    // A concurrent request for the same landmark earned today's XP between our
+    // read and this insert; the database rejected ours, so this is a repeat.
+    if (!(err instanceof DuplicateRewardError)) throw err
+    const winner = findRewardedToday(await store.listVisits(userId))
+    if (!winner) throw err
+    return repeat(winner)
+  }
+  const { visit, profile: updated } = saved
+  const after = questProgress(quests, [...visits, visit])
 
   const previousRank = rankFor(profile.xp)
   const rank = rankFor(updated.xp)
@@ -67,4 +86,20 @@ export async function recordEngagement(
     .map((quest) => quest.badgeName)
 
   return { visit, xpAwarded, profile: updated, rank, leveledUp: rank.level > previousRank.level, newBadges }
+}
+
+/**
+ * For engagements that ride along with another result (a scan match, a chat
+ * reply): a failed XP write is logged and reported as no progress, so the
+ * traveler still gets their story or answer.
+ */
+export async function tryRecordEngagement(
+  ...args: Parameters<typeof recordEngagement>
+): Promise<EngagementResult | null> {
+  try {
+    return await recordEngagement(...args)
+  } catch (err) {
+    console.error(`Failed to record ${args[3]} engagement for landmark ${args[2]}:`, err)
+    return null
+  }
 }
