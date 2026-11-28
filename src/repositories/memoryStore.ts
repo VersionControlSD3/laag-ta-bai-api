@@ -62,14 +62,16 @@ export function createMemoryStore(): DataStore {
         .filter((visit) => visit.userId === userId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     },
-    async awardXp(userId, award) {
-      // No await between reading and writing the profile, so this is atomic
-      // like the SQL function (an await here would let calls interleave).
-      if (!profiles.has(userId)) await this.getOrCreateProfile(userId)
-      const current = profiles.get(userId)!
-      const next = { ...current, xp: current.xp + award.xp, streakCount: award.streakCount, lastActiveDate: award.lastActiveDate }
-      profiles.set(userId, next)
-      return next
+    async recordReward({ streakCount, lastActiveDate, ...input }) {
+      // Mirrors public.record_visit: validate first so a failure writes nothing.
+      if (!profiles.has(input.userId)) throw new Error(`profile ${input.userId} not found`)
+      const visit = await this.addVisit(input) // duplicate check + insert run without yielding
+      // No await between reading and writing the profile, so concurrent
+      // rewards cannot overwrite each other's XP.
+      const current = profiles.get(input.userId)!
+      const profile = { ...current, xp: current.xp + input.xpAwarded, streakCount, lastActiveDate }
+      profiles.set(input.userId, profile)
+      return { visit, profile }
     },
     async addVisit(input) {
       const createdAt = new Date().toISOString()

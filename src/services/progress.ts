@@ -62,9 +62,12 @@ export async function recordEngagement(
 
   const xpAwarded = XP_PER_ENGAGEMENT
   const before = questProgress(quests, visits)
-  let visit: Visit
+  const streak = nextStreak(profile, now)
+  let saved: { visit: Visit; profile: Profile }
   try {
-    visit = await store.addVisit({ userId, landmarkId, source, xpAwarded })
+    // Visit, XP and streak are written together or not at all, so a failure
+    // can't leave a rewarded visit whose XP was never credited.
+    saved = await store.recordReward({ userId, landmarkId, source, xpAwarded, ...streak })
   } catch (err) {
     // A concurrent request for the same landmark earned today's XP between our
     // read and this insert; the database rejected ours, so this is a repeat.
@@ -73,10 +76,8 @@ export async function recordEngagement(
     if (!winner) throw err
     return repeat(winner)
   }
+  const { visit, profile: updated } = saved
   const after = questProgress(quests, [...visits, visit])
-
-  const streak = nextStreak(profile, now)
-  const updated = await store.awardXp(userId, { xp: xpAwarded, ...streak })
 
   const previousRank = rankFor(profile.xp)
   const rank = rankFor(updated.xp)

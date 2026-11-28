@@ -2,7 +2,8 @@ import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, createContext } from '../src/createApp.js'
 import { loadEnv } from '../src/config/env.js'
-import { ALLOWED_IMAGE_TYPES } from '../src/routes/scan.js'
+import { LANDMARKS } from '../src/data/seed.js'
+import { ALLOWED_IMAGE_TYPES, findDuplicate, nameTokens } from '../src/routes/scan.js'
 
 let ctx: ReturnType<typeof createContext>
 let app: ReturnType<typeof createApp>
@@ -433,7 +434,7 @@ describe('POST /v1/scan - Scan-to-Story API', () => {
 
     it('still returns the identified landmark when recording XP fails', async () => {
       vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({ landmarkId: 'magellans-cross', confidence: 0.95 })
-      vi.spyOn(ctx.store, 'addVisit').mockRejectedValue(new Error('Supabase query failed: duplicate key'))
+      vi.spyOn(ctx.store, 'recordReward').mockRejectedValue(new Error('Supabase query failed: connection reset'))
       vi.spyOn(console, 'error').mockImplementation(() => {})
 
       const res = await request(app)
@@ -451,7 +452,7 @@ describe('POST /v1/scan - Scan-to-Story API', () => {
 
     it('does not insert a duplicate visit for a same-day repeat scan', async () => {
       vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({ landmarkId: 'magellans-cross', confidence: 0.95 })
-      const addVisit = vi.spyOn(ctx.store, 'addVisit')
+      const recordReward = vi.spyOn(ctx.store, 'recordReward')
       for (let i = 0; i < 2; i++) {
         await request(app)
           .post('/v1/scan')
@@ -460,7 +461,7 @@ describe('POST /v1/scan - Scan-to-Story API', () => {
           .field('lng', AT_MAGELLAN.lng)
           .attach('image', PNG_IMAGE, { filename: 'photo.png', contentType: 'image/png' })
       }
-      expect(addVisit).toHaveBeenCalledTimes(1)
+      expect(recordReward).toHaveBeenCalledTimes(1)
       expect((await ctx.store.getLandmark('magellans-cross'))?.visitCount).toBe(1)
     })
 
@@ -508,6 +509,80 @@ describe('POST /v1/scan - Scan-to-Story API', () => {
 
       expect(res.status).toBe(200)
       expect(res.body.data.landmark).toMatchObject({ admissionFee: 0, estimatedVisitMinutes: 38 })
+    })
+  })
+
+  describe('Duplicate detection for discovered landmarks (PR review)', () => {
+    const MAGELLAN = { latitude: 10.29365, longitude: 123.90199 }
+    const CASA_GORORDO = { latitude: 10.29638, longitude: 123.90432 }
+
+    it.each([
+      "Magellan's Cross Kiosk",
+      'Magellans Cross Kiosk',
+      'Magellan’s Cross Kiosk',
+      "MAGELLAN'S CROSS",
+    ])('matches %s to magellans-cross', (name) => {
+      expect(findDuplicate(LANDMARKS, name, MAGELLAN)?.id).toBe('magellans-cross')
+    })
+
+    it('folds possessives and plurals the same way on both sides', () => {
+      expect(nameTokens("Magellan's Cross")).toEqual(nameTokens('Magellans Cross'))
+      expect(nameTokens('Magellans Cross')).toEqual(new Set(['magellan', 'cross']))
+    })
+
+    it('does not match on a generic word alone', () => {
+      expect(findDuplicate(LANDMARKS, 'Cebu City Museum', CASA_GORORDO)).toBeNull()
+      expect(findDuplicate(LANDMARKS, 'Museum', CASA_GORORDO)).toBeNull()
+    })
+
+    it('still matches a variant that shares a distinctive word', () => {
+      expect(findDuplicate(LANDMARKS, 'Casa Gorordo', CASA_GORORDO)?.id).toBe('casa-gorordo')
+    })
+
+    it('saves Cebu City Museum as a new landmark instead of crediting Casa Gorordo', async () => {
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({
+        landmarkId: null,
+        confidence: 0.9,
+        discovered: {
+          name: 'Cebu City Museum',
+          category: 'museum',
+          district: 'Cebu City',
+          story: { about: 'A.', significance: 'S.', architecture: 'Ar.', trivia: 'T.' },
+        },
+      })
+
+      const res = await request(app)
+        .post('/v1/scan')
+        .set(auth)
+        .field('lat', String(CASA_GORORDO.latitude))
+        .field('lng', String(CASA_GORORDO.longitude))
+        .attach('image', PNG_IMAGE, { filename: 'photo.png', contentType: 'image/png' })
+
+      expect(res.body.data.landmark.id).toBe('cebu-city-museum')
+    })
+
+    it('checks the full catalog for duplicates', async () => {
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({
+        landmarkId: null,
+        confidence: 0.92,
+        discovered: {
+          name: 'Magellans Cross Kiosk',
+          category: 'monument',
+          district: 'Cebu City',
+          story: { about: 'A.', significance: 'S.', architecture: 'Ar.', trivia: 'T.' },
+        },
+      })
+      const listLandmarks = vi.spyOn(ctx.store, 'listLandmarks')
+
+      const res = await request(app)
+        .post('/v1/scan')
+        .set(auth)
+        .field('lat', String(MAGELLAN.latitude))
+        .field('lng', String(MAGELLAN.longitude))
+        .attach('image', PNG_IMAGE, { filename: 'photo.png', contentType: 'image/png' })
+
+      expect(res.body.data.landmark.id).toBe('magellans-cross')
+      expect(listLandmarks).toHaveBeenCalledWith({ allPages: true })
     })
   })
 })

@@ -63,6 +63,31 @@ describe('concurrent engagements', () => {
   })
 })
 
+describe('failed reward writes', () => {
+  it('keeps no partial state when the reward write fails, so a retry still earns XP', async () => {
+    const store = createMemoryStore()
+    const spy = vi.spyOn(store, 'recordReward').mockRejectedValueOnce(new Error('connection reset'))
+
+    await expect(recordEngagement(store, 'traveler', 'fort-san-pedro', 'scan')).rejects.toThrow('connection reset')
+    expect(await store.listVisits('traveler')).toEqual([])
+    expect((await store.getOrCreateProfile('traveler')).xp).toBe(0)
+
+    const retry = await recordEngagement(store, 'traveler', 'fort-san-pedro', 'scan')
+    expect(retry.xpAwarded).toBe(50)
+    expect((await store.getOrCreateProfile('traveler')).xp).toBe(50)
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes nothing when the profile is missing', async () => {
+    const store = createMemoryStore()
+    await expect(
+      store.recordReward({ userId: 'ghost', landmarkId: 'fort-san-pedro', source: 'scan', xpAwarded: 50, streakCount: 1, lastActiveDate: '2026-11-28' }),
+    ).rejects.toThrow('not found')
+    expect(await store.listVisits('ghost')).toEqual([])
+    expect((await store.getLandmark('fort-san-pedro'))?.visitCount).toBe(0)
+  })
+})
+
 describe('supabase store race guards', () => {
   function storeWith(handler: (path: string, init?: RequestInit) => Response) {
     const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (url, init) => handler(new URL(String(url)).pathname, init))
@@ -94,20 +119,34 @@ describe('supabase store race guards', () => {
     expect(String(error)).toContain('row-level security')
   })
 
-  it('awards XP through the atomic award_xp function', async () => {
+  it('records a reward through the transactional record_visit function', async () => {
     const { store, fetch } = storeWith((path) => {
-      expect(path).toBe('/rest/v1/rpc/award_xp')
+      expect(path).toBe('/rest/v1/rpc/record_visit')
       return Response.json({
-        id: 'u', display_name: 'T', avatar_url: null, nationality: null, bio: null, language: 'en',
-        xp: 150, streak_count: 2, last_active_date: '2026-11-28', terms_accepted_at: null,
+        duplicate: false,
+        visit: { id: 'v1', user_id: 'u', landmark_id: 'l', source: 'scan', xp_awarded: 50, created_at: '2026-11-28T01:00:00+00:00' },
+        profile: {
+          id: 'u', display_name: 'T', avatar_url: null, nationality: null, bio: null, language: 'en',
+          xp: 150, streak_count: 2, last_active_date: '2026-11-28', terms_accepted_at: null,
+        },
       })
     })
 
-    const profile = await store.awardXp('u', { xp: 50, streakCount: 2, lastActiveDate: '2026-11-28' })
-
-    expect(profile).toMatchObject({ xp: 150, streakCount: 2, lastActiveDate: '2026-11-28' })
-    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({
-      p_user_id: 'u', p_xp: 50, p_streak_count: 2, p_last_active_date: '2026-11-28',
+    const saved = await store.recordReward({
+      userId: 'u', landmarkId: 'l', source: 'scan', xpAwarded: 50, streakCount: 2, lastActiveDate: '2026-11-28',
     })
+
+    expect(saved.visit).toMatchObject({ id: 'v1', landmarkId: 'l', xpAwarded: 50 })
+    expect(saved.profile).toMatchObject({ xp: 150, streakCount: 2, lastActiveDate: '2026-11-28' })
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({
+      p_user_id: 'u', p_landmark_id: 'l', p_source: 'scan', p_xp: 50, p_streak_count: 2, p_last_active_date: '2026-11-28',
+    })
+  })
+
+  it('maps record_visit duplicate results to DuplicateRewardError', async () => {
+    const { store } = storeWith(() => Response.json({ duplicate: true }))
+    await expect(
+      store.recordReward({ userId: 'u', landmarkId: 'l', source: 'scan', xpAwarded: 50, streakCount: 1, lastActiveDate: '2026-11-28' }),
+    ).rejects.toBeInstanceOf(DuplicateRewardError)
   })
 })

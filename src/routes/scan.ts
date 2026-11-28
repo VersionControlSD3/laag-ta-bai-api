@@ -51,22 +51,39 @@ function finiteOr(value: unknown, fallback: number): number {
   return Number.isFinite(n) ? n : fallback
 }
 
-const NAME_STOPWORDS = new Set(['the', 'of', 'de', 'del', 'la', 'cebu', 'city', 's'])
+/** Words ignored entirely when comparing names. */
+const NAME_STOPWORDS = new Set(['the', 'of', 'de', 'del', 'la', 'ng', 'sa', 'cebu', 'city'])
 
-function nameTokens(name: string): Set<string> {
+/**
+ * Words that describe a kind of place rather than a particular one. They still
+ * have to match, but a name match needs at least one word outside this list,
+ * so "Cebu City Museum" never matches "Casa Gorordo Museum" on "museum" alone.
+ */
+const GENERIC_NAME_WORDS = new Set([
+  'ancestral', 'basilica', 'building', 'cathedral', 'center', 'centre', 'chapel', 'church', 'cross',
+  'fort', 'garden', 'hall', 'heritage', 'house', 'kiosk', 'landmark', 'memorial', 'minore', 'monument',
+  'museum', 'national', 'old', 'park', 'parish', 'plaza', 'san', 'santa', 'santo', 'shrine', 'sto',
+  'temple', 'tower',
+])
+
+/** Lowercase, accent-free words with possessives and plurals folded ("Magellan's" / "Magellans" -> "magellan"). */
+export function nameTokens(name: string): Set<string> {
   return new Set(
     name
       .toLowerCase()
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
+      .replace(/['‘’ʼ`]/g, '')
       .split(/[^a-z0-9]+/)
+      .map((t) => (t.length > 3 && t.endsWith('s') && !t.endsWith('ss') ? t.slice(0, -1) : t))
       .filter((t) => t && !NAME_STOPWORDS.has(t)),
   )
 }
 
 /**
  * Finds an existing landmark that the discovered one most likely duplicates:
- * one nearby whose name shares most of its words with the discovered name.
+ * one nearby where every word of the shorter name appears in the longer one
+ * and at least one shared word is distinctive (not GENERIC_NAME_WORDS).
  */
 export function findDuplicate(
   landmarks: Landmark[],
@@ -79,16 +96,17 @@ export function findDuplicate(
     const distance = distanceMeters(position, landmark)
     if (distance > DUPLICATE_RADIUS_METERS) continue
     const existing = nameTokens(landmark.name)
-    const shared = [...existing].filter((t) => discovered.has(t)).length
+    const shared = [...existing].filter((t) => discovered.has(t))
     // Every significant word of the shorter name must appear in the longer one.
     const smaller = Math.min(existing.size, discovered.size)
-    if (smaller === 0 || shared < smaller) continue
+    if (smaller === 0 || shared.length < smaller) continue
+    if (!shared.some((t) => !GENERIC_NAME_WORDS.has(t))) continue
     if (!best || distance < best.distance) best = { landmark, distance }
   }
   return best?.landmark ?? null
 }
 
-const rateError ={ code: 'rate_limited', message: 'Too many scan requests. Please try again later.' }
+const rateError = { code: 'rate_limited', message: 'Too many scan requests. Please try again later.' }
 
 export function scanRouter(ctx: AppContext) {
   const router = Router()
@@ -143,7 +161,9 @@ export function scanRouter(ctx: AppContext) {
       const longitude = origin?.longitude ?? finiteOr(result.discovered.longitude, 123.8854)
       const existing =
         (await ctx.store.getLandmark(slug)) ??
-        findDuplicate(landmarks, result.discovered.name, { latitude, longitude })
+        // The full catalog, not the first page used for the candidate list,
+        // so a name variant of a later-page landmark is still caught.
+        findDuplicate(await ctx.store.listLandmarks({ allPages: true }), result.discovered.name, { latitude, longitude })
       if (existing) {
         match = existing
       } else {

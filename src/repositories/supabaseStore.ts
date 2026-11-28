@@ -202,20 +202,21 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
       )
       return (rows as VisitRow[]).map(toVisit)
     },
-    async awardXp(userId, award) {
-      // award_xp does `xp = xp + p_xp` in one statement (see migration
-      // 20261128010000_xp_race_guards.sql), so concurrent awards both count.
-      const row = check(
-        await db
-          .rpc('award_xp', {
-            p_user_id: userId,
-            p_xp: award.xp,
-            p_streak_count: award.streakCount,
-            p_last_active_date: award.lastActiveDate,
-          })
-          .single(),
-      )
-      return toProfile(row as ProfileRow)
+    async recordReward(reward) {
+      // record_visit inserts the visit and adds XP + streak in one transaction
+      // (migration 20261128010000_xp_race_guards.sql).
+      const result = check(
+        await db.rpc('record_visit', {
+          p_user_id: reward.userId,
+          p_landmark_id: reward.landmarkId,
+          p_source: reward.source,
+          p_xp: reward.xpAwarded,
+          p_streak_count: reward.streakCount,
+          p_last_active_date: reward.lastActiveDate,
+        }),
+      ) as { duplicate: true } | { duplicate: false; visit: VisitRow; profile: ProfileRow }
+      if (result.duplicate) throw new DuplicateRewardError()
+      return { visit: toVisit(result.visit), profile: toProfile(result.profile) }
     },
     async addVisit(input) {
       const result = await db

@@ -14,7 +14,7 @@ export class DuplicateRewardError extends Error {
   }
 }
 
-export type XpAward = { xp: number; streakCount: number; lastActiveDate: string }
+export type NewReward = NewVisit & { streakCount: number; lastActiveDate: string }
 
 export type NewUserAccount ={ email: string; passwordHash: string; displayName: string }
 export type StoredUserAccount = UserAccount & { passwordHash: string }
@@ -33,14 +33,16 @@ export interface DataStore {
   /** Returns the profile, creating a default one on first access. */
   getOrCreateProfile(userId: string, defaults?: { displayName?: string }): Promise<Profile>
   updateProfile(userId: string, update: ProfileUpdate & Partial<Pick<Profile, 'xp' | 'streakCount' | 'lastActiveDate' | 'termsAcceptedAt'>>): Promise<Profile>
-  /**
-   * Adds `award.xp` to the profile's XP atomically (never read-modify-write,
-   * so concurrent engagements cannot overwrite each other) and sets the streak.
-   */
-  awardXp(userId: string, award: XpAward): Promise<Profile>
   listVisits(userId: string): Promise<Visit[]>
   /** Throws DuplicateRewardError for a second XP-earning visit on the same PHT day. */
   addVisit(visit: NewVisit): Promise<Visit>
+  /**
+   * Saves an XP-earning visit and adds its XP and streak to the profile as one
+   * all-or-nothing operation: a failure never leaves a visit whose XP was not
+   * credited. XP is added as xp + n, so concurrent rewards both count. Throws
+   * DuplicateRewardError when today's reward for the landmark was already taken.
+   */
+  recordReward(reward: NewReward): Promise<{ visit: Visit; profile: Profile }>
   createUserAccount?(user: NewUserAccount): Promise<UserAccount>
   findUserAccountByEmail?(email: string): Promise<StoredUserAccount | null>
   findUserAccountById?(id: string): Promise<UserAccount | null>
