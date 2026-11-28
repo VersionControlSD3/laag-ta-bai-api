@@ -187,6 +187,42 @@ describe('POST /v1/auth/signup', () => {
     expect(duplicate.status).toBe(409)
     expect(duplicate.body.error.code).toBe('conflict')
   })
+
+  it('treats the same email with different case and spaces as a duplicate', async () => {
+    await request(app).post('/v1/auth/signup').send({ email: 'gia@example.com', password: 'Password123!', displayName: 'Gia' })
+    const duplicate = await request(app)
+      .post('/v1/auth/signup')
+      .send({ email: '  GIA@Example.com ', password: 'Password123!', displayName: 'Gia again' })
+    expect(duplicate.status).toBe(409)
+    expect(duplicate.body.error.message).toBe('An account with this email already exists.')
+  })
+})
+
+describe('POST /v1/auth/email-status (bugs #11 and #16)', () => {
+  it('says whether an email already has an account, ignoring case', async () => {
+    const before = await request(app).post('/v1/auth/email-status').send({ email: 'new.traveler@example.com' })
+    expect(before.status).toBe(200)
+    expect(before.body.data).toEqual({ registered: false })
+    expect(before.headers['cache-control']).toBe('no-store')
+
+    await request(app).post('/v1/auth/signup').send({ email: 'new.traveler@example.com', password: 'Password123!', displayName: 'New' })
+    const after = await request(app).post('/v1/auth/email-status').send({ email: 'New.Traveler@Example.com' })
+    expect(after.body.data).toEqual({ registered: true })
+  })
+
+  it('rejects an invalid email', async () => {
+    const res = await request(app).post('/v1/auth/email-status').send({ email: 'not-an-email' })
+    expect(res.status).toBe(400)
+  })
+
+  it('is rate limited, since it reveals whether an email is registered', async () => {
+    const statuses = []
+    for (let i = 0; i < 11; i++) {
+      statuses.push((await request(app).post('/v1/auth/email-status').send({ email: `probe${i}@example.com` })).status)
+    }
+    expect(statuses.slice(0, 10).every((s) => s === 200)).toBe(true)
+    expect(statuses[10]).toBe(429)
+  })
 })
 
 describe('POST /v1/auth/login and GET /v1/auth/session', () => {

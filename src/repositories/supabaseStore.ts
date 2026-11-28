@@ -229,6 +229,12 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
         createdAt: data.user.created_at,
       }
     },
+    async isEmailRegistered(email) {
+      // supabase/migrations/20261128000000_email_registered.sql; callable with the secret key only.
+      const { data, error } = await db.rpc('email_registered', { p_email: email })
+      if (error) throw new Error(`Email check failed: ${error.message}`)
+      return data === true
+    },
     async findUserAccountById(id) {
       const { data, error } = await db.auth.admin.getUserById(id)
       if (error || !data.user) return null

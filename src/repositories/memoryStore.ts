@@ -87,6 +87,9 @@ export function createMemoryStore(): DataStore {
       await this.getOrCreateProfile(id, { displayName: user.displayName })
       return { id: user.id, email: user.email, displayName: user.displayName, createdAt: user.createdAt }
     },
+    async isEmailRegistered(email: string): Promise<boolean> {
+      return usersByEmail.has(email.trim().toLowerCase())
+    },
     async findUserAccountByEmail(email: string): Promise<StoredUserAccount | null> {
       const id = usersByEmail.get(email.trim().toLowerCase())
       if (!id) return null
