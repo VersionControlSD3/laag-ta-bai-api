@@ -426,6 +426,7 @@ paths:
         The client holds the transcript and sends it every turn; the server keeps the
         last 30 messages (15 exchanges). Rate limited to 30 requests per minute per IP.
         The last input message must be from the user. Client timestamps are optional.
+        `language` is the app language the traveller picked; the guide replies in it (English when omitted).
         Replies include a server-generated createdAt and fit within the input message length limit.
         With no Gemini key replies are explicitly labeled as stubs. AI failures return 503.
       security: [{}, { bearerAuth: [] }]
@@ -443,6 +444,7 @@ paths:
                   minItems: 1
                   maxItems: 100
                   items: { $ref: '#/components/schemas/ChatMessage' }
+                language: { type: string, enum: [en, ceb], default: en }
       responses:
         '200':
           description: Guide reply
