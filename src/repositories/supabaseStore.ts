@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Landmark, Profile, Quest, SavedPlace, Visit } from '../domain/types.js'
-import type { DataStore } from './store.js'
+import { DuplicateRewardError, type DataStore } from './store.js'
+
+const UNIQUE_VIOLATION = '23505'
+const ONE_REWARD_PER_DAY_INDEX = 'visits_one_reward_per_day'
 
 type LandmarkRow = {
   id: string
@@ -199,20 +202,36 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
       )
       return (rows as VisitRow[]).map(toVisit)
     },
-    async addVisit(input) {
+    async awardXp(userId, award) {
+      // award_xp does `xp = xp + p_xp` in one statement (see migration
+      // 20261128010000_xp_race_guards.sql), so concurrent awards both count.
       const row = check(
         await db
-          .from('visits')
-          .insert({
-            user_id: input.userId,
-            landmark_id: input.landmarkId,
-            source: input.source,
-            xp_awarded: input.xpAwarded,
+          .rpc('award_xp', {
+            p_user_id: userId,
+            p_xp: award.xp,
+            p_streak_count: award.streakCount,
+            p_last_active_date: award.lastActiveDate,
           })
-          .select('*')
           .single(),
       )
-      return toVisit(row as VisitRow)
+      return toProfile(row as ProfileRow)
+    },
+    async addVisit(input) {
+      const result = await db
+        .from('visits')
+        .insert({
+          user_id: input.userId,
+          landmark_id: input.landmarkId,
+          source: input.source,
+          xp_awarded: input.xpAwarded,
+        })
+        .select('*')
+        .single()
+      if (result.error?.code === UNIQUE_VIOLATION && result.error.message.includes(ONE_REWARD_PER_DAY_INDEX)) {
+        throw new DuplicateRewardError()
+      }
+      return toVisit(check(result) as VisitRow)
     },
     async createUserAccount(input) {
       const { data, error } = await db.auth.admin.createUser({

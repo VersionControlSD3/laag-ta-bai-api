@@ -1,6 +1,6 @@
 import { nextStreak, phtDate, rankFor, XP_PER_ENGAGEMENT, type RankInfo } from '../domain/xp.js'
 import type { Profile, Quest, Visit, VisitSource } from '../domain/types.js'
-import type { DataStore } from '../repositories/store.js'
+import { DuplicateRewardError, type DataStore } from '../repositories/store.js'
 
 export type QuestProgress = Quest & {
   completedLandmarkIds: string[]
@@ -48,24 +48,35 @@ export async function recordEngagement(
   ])
 
   const today = phtDate(now)
-  const rewardedToday = visits.find(
-    (visit) => visit.landmarkId === landmarkId && visit.xpAwarded > 0 && phtDate(new Date(visit.createdAt)) === today,
-  )
+  const findRewardedToday = (list: Visit[]) =>
+    list.find((visit) => visit.landmarkId === landmarkId && visit.xpAwarded > 0 && phtDate(new Date(visit.createdAt)) === today)
 
   // A same-day repeat earns nothing and changes nothing, so reuse the rewarded
   // visit instead of inserting a duplicate row (which would also inflate the
   // landmark's visit_count).
-  if (rewardedToday) {
-    return { visit: rewardedToday, xpAwarded: 0, profile, rank: rankFor(profile.xp), leveledUp: false, newBadges: [] }
-  }
+  const repeat = (visit: Visit): EngagementResult => ({
+    visit, xpAwarded: 0, profile, rank: rankFor(profile.xp), leveledUp: false, newBadges: [],
+  })
+  const rewardedToday = findRewardedToday(visits)
+  if (rewardedToday) return repeat(rewardedToday)
 
   const xpAwarded = XP_PER_ENGAGEMENT
   const before = questProgress(quests, visits)
-  const visit = await store.addVisit({ userId, landmarkId, source, xpAwarded })
+  let visit: Visit
+  try {
+    visit = await store.addVisit({ userId, landmarkId, source, xpAwarded })
+  } catch (err) {
+    // A concurrent request for the same landmark earned today's XP between our
+    // read and this insert; the database rejected ours, so this is a repeat.
+    if (!(err instanceof DuplicateRewardError)) throw err
+    const winner = findRewardedToday(await store.listVisits(userId))
+    if (!winner) throw err
+    return repeat(winner)
+  }
   const after = questProgress(quests, [...visits, visit])
 
   const streak = nextStreak(profile, now)
-  const updated = await store.updateProfile(userId, { xp: profile.xp + xpAwarded, ...streak })
+  const updated = await store.awardXp(userId, { xp: xpAwarded, ...streak })
 
   const previousRank = rankFor(profile.xp)
   const rank = rankFor(updated.xp)
