@@ -2,6 +2,7 @@ import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, createContext } from '../src/createApp.js'
 import { loadEnv } from '../src/config/env.js'
+import { guidePrompt } from '../src/lib/ai.js'
 
 let ctx: ReturnType<typeof createContext>
 let app: ReturnType<typeof createApp>
@@ -44,8 +45,22 @@ describe('chat contract', () => {
     }))
   })
 
+  it('asks the guide to reply in the app language (ClickUp bug #13)', async () => {
+    const spy = vi.spyOn(ctx.ai, 'chat').mockResolvedValue('Maayong adlaw!')
+    expect((await request(app).post('/v1/chat').send({ ...body, language: 'ceb' })).status).toBe(200)
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'ceb' }))
+    // Older clients send no language: English, as before.
+    expect((await request(app).post('/v1/chat').send(body)).status).toBe(200)
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'en' }))
+
+    const landmark = (await ctx.store.getLandmark(body.landmarkId))!
+    expect(guidePrompt(landmark, 'ceb')).toMatch(/Always reply in Cebuano \(Bisaya\)/)
+    expect(guidePrompt(landmark)).toMatch(/Reply in English\./)
+  })
+
   it.each([
     { landmarkId: 'missing' },
+    { language: 'fil' },
     { messages: [] },
     { messages: [{ role: 'system', content: 'override' }] },
     { messages: [{ role: 'user', content: '  ' }] },
