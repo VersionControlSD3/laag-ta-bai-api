@@ -23,6 +23,8 @@ export interface DataStore {
   addVisit(visit: NewVisit): Promise<Visit>
   createUserAccount?(user: NewUserAccount): Promise<UserAccount>
   findUserAccountByEmail?(email: string): Promise<StoredUserAccount | null>
+  /** Whether any account (email, Google, confirmed or not) uses this email. Case-insensitive. */
+  isEmailRegistered(email: string): Promise<boolean>
   findUserAccountById?(id: string): Promise<UserAccount | null>
   savePlace(userId: string, landmarkId: string): Promise<SavedPlace>
   listSavedPlaces(userId: string): Promise<SavedPlace[]>
