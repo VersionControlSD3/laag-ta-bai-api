@@ -204,7 +204,7 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
     },
     async recordReward(reward) {
       // record_visit inserts the visit and adds XP + streak in one transaction
-      // (migration 20261128010000_xp_race_guards.sql).
+      // (migration 20261128110000_xp_race_guards.sql).
       const result = check(
         await db.rpc('record_visit', {
           p_user_id: reward.userId,
@@ -248,6 +248,12 @@ export function createSupabaseStore(db: SupabaseClient): DataStore {
         displayName: input.displayName,
         createdAt: data.user.created_at,
       }
+    },
+    async isEmailRegistered(email) {
+      // supabase/migrations/20261128000000_email_registered.sql; callable with the secret key only.
+      const { data, error } = await db.rpc('email_registered', { p_email: email })
+      if (error) throw new Error(`Email check failed: ${error.message}`)
+      return data === true
     },
     async findUserAccountById(id) {
       const { data, error } = await db.auth.admin.getUserById(id)

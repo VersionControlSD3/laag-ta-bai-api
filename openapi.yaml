@@ -55,6 +55,9 @@ paths:
       operationId: signup
       tags: [auth]
       summary: Register a new traveler account (SRS 3.1.6)
+      description: |
+        Returns 409 (`conflict`) when the email already has an account, confirmed or not, including
+        Google accounts. The check runs before Supabase, which would otherwise hide the duplicate.
       requestBody:
         required: true
         content:
@@ -92,6 +95,43 @@ paths:
                           expiresIn: { type: integer }
         '400': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/email-status:
+    post:
+      operationId: emailStatus
+      tags: [auth]
+      summary: Check whether an email already has an account (bugs #11 and #16)
+      description: |
+        The sign-up form calls this before Supabase `signUp`, which hides taken emails (it answers as if
+        the account were new and emails the owner). Covers email and Google accounts, confirmed or not.
+        This reveals whether an email is registered, so it is rate limited to 10 requests per minute per IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Whether the email is registered
+          headers:
+            Cache-Control: { schema: { type: string, enum: [no-store] } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [registered]
+                    properties:
+                      registered: { type: boolean }
+        '400': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
 
   /v1/auth/login:
     post:
@@ -390,6 +430,7 @@ paths:
         The client holds the transcript and sends it every turn; the server keeps the
         last 30 messages (15 exchanges). Rate limited to 30 requests per minute per IP.
         The last input message must be from the user. Client timestamps are optional.
+        `language` is the app language the traveller picked; the guide replies in it (English when omitted).
         Replies include a server-generated createdAt and fit within the input message length limit.
         With no Gemini key replies are explicitly labeled as stubs. AI failures return 503.
       security: [{}, { bearerAuth: [] }]
@@ -407,6 +448,7 @@ paths:
                   minItems: 1
                   maxItems: 100
                   items: { $ref: '#/components/schemas/ChatMessage' }
+                language: { type: string, enum: [en, ceb], default: en }
       responses:
         '200':
           description: Guide reply

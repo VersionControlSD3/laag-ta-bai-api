@@ -19,6 +19,8 @@ const chatBody = z.object({
     .min(1)
     .max(100)
     .refine((messages) => messages.at(-1)?.role === 'user', 'The last message must be from the user.'),
+  /** The app language, so guests (who have no profile) get replies in Cebuano too. */
+  language: z.enum(['en', 'ceb']).optional(),
 })
 
 export function chatRouter(ctx: AppContext) {
@@ -37,7 +39,9 @@ export function chatRouter(ctx: AppContext) {
 
     let reply: string
     try {
-      reply = (await ctx.ai.chat({ landmark, messages: body.messages.slice(-CHAT_MEMORY_MESSAGES) })).trim()
+      reply = (await ctx.ai.chat({
+        landmark, messages: body.messages.slice(-CHAT_MEMORY_MESSAGES), language: body.language ?? 'en',
+      })).trim()
       if (!reply) throw new Error('Empty AI response')
     } catch {
       throw new HttpError(503, 'ai_unavailable', 'The AI guide is unavailable. Please try again later.')

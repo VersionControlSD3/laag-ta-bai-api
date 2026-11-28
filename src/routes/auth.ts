@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Router } from 'express'
+import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import type { AppContext } from '../context.js'
 import { hashPassword, verifyPassword } from '../lib/authCrypto.js'
@@ -12,6 +13,10 @@ const signupSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   displayName: z.string().trim().min(1, 'Display name is required').max(60),
 })
+
+const emailStatusSchema = z.object({ email: z.string().trim().email() })
+
+const EMAIL_TAKEN = 'An account with this email already exists.'
 
 const loginSchema = z.object({
   email: z.string().trim().email(),
@@ -36,12 +41,27 @@ export function authRouter(ctx: AppContext) {
   const router = Router()
   router.use('/auth', passwordRecoveryRouter(ctx.passwordRecovery))
 
+  // Bugs #11 / #16: the sign-up form asks before calling Supabase, because Supabase hides taken
+  // emails (no error, a fake new user, and a "reset your password" email to the owner).
+  // This does tell a caller whether an email has an account, so it is rate limited per IP.
+  const emailStatusLimiter = rateLimit({
+    windowMs: 60_000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false,
+    message: { error: { code: 'rate_limited', message: 'Too many requests. Please try again in a minute.' } },
+  })
+  router.post('/auth/email-status', emailStatusLimiter, async (req, res) => {
+    const { email } = emailStatusSchema.parse(req.body)
+    res.set('Cache-Control', 'no-store')
+    res.json({ data: { registered: await ctx.store.isEmailRegistered(email) } })
+  })
+
   // Issue #6: Sign Up API
   router.post('/auth/signup', async (req, res) => {
     const { email, password, displayName } = signupSchema.parse(req.body)
 
     const authClient = sessionClient(ctx)
     if (authClient) {
+      // Supabase would answer a taken email as if it were new (and email the owner), so check first.
+      if (await ctx.store.isEmailRegistered(email)) throw conflict(EMAIL_TAKEN)
       const { data, error } = await authClient.auth.signUp({
         email,
         password,
@@ -56,6 +76,9 @@ export function authRouter(ctx: AppContext) {
         }
         throw conflict(error.message)
       }
+
+      // Raced with another sign-up for the same email: Supabase returns a user with no identities.
+      if (data.user && data.user.identities?.length === 0) throw conflict(EMAIL_TAKEN)
 
       const user = data.user
       const session = data.session
@@ -86,10 +109,7 @@ export function authRouter(ctx: AppContext) {
       throw new Error('User creation not supported on current store')
     }
 
-    const existing = await ctx.store.findUserAccountByEmail?.(email)
-    if (existing) {
-      throw conflict('User with this email already exists')
-    }
+    if (await ctx.store.isEmailRegistered(email)) throw conflict(EMAIL_TAKEN)
 
     const passwordHash = hashPassword(password)
     const user = await ctx.store.createUserAccount({
