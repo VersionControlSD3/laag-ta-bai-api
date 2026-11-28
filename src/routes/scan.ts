@@ -7,7 +7,7 @@ import { distanceMeters } from '../domain/geo.js'
 import { LANDMARK_CATEGORIES, type Landmark } from '../domain/types.js'
 import { badRequest, HttpError } from '../lib/errors.js'
 import { optionalAuth } from '../middleware/auth.js'
-import { recordEngagement } from '../services/progress.js'
+import { tryRecordEngagement } from '../services/progress.js'
 import { toSummary } from './landmarks.js'
 
 // SRS 3.1.1.1.c supported formats. The 720p minimum is checked in the frontend
@@ -40,7 +40,55 @@ const scanBody = z
     'Supply lat and lng together.',
   )
 
-const rateError = { code: 'rate_limited', message: 'Too many scan requests. Please try again later.' }
+/**
+ * Gemini may describe a catalogued landmark in other words (e.g. "Magellan's
+ * Cross Kiosk"). The position is usually the traveler's GPS, so allow some slack.
+ */
+export const DUPLICATE_RADIUS_METERS = 300
+
+function finiteOr(value: unknown, fallback: number): number {
+  const n = typeof value === 'string' && value.trim() === '' ? NaN : Number(value ?? NaN)
+  return Number.isFinite(n) ? n : fallback
+}
+
+const NAME_STOPWORDS = new Set(['the', 'of', 'de', 'del', 'la', 'cebu', 'city', 's'])
+
+function nameTokens(name: string): Set<string> {
+  return new Set(
+    name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t && !NAME_STOPWORDS.has(t)),
+  )
+}
+
+/**
+ * Finds an existing landmark that the discovered one most likely duplicates:
+ * one nearby whose name shares most of its words with the discovered name.
+ */
+export function findDuplicate(
+  landmarks: Landmark[],
+  name: string,
+  position: { latitude: number; longitude: number },
+): Landmark | null {
+  const discovered = nameTokens(name)
+  let best: { landmark: Landmark; distance: number } | null = null
+  for (const landmark of landmarks) {
+    const distance = distanceMeters(position, landmark)
+    if (distance > DUPLICATE_RADIUS_METERS) continue
+    const existing = nameTokens(landmark.name)
+    const shared = [...existing].filter((t) => discovered.has(t)).length
+    // Every significant word of the shorter name must appear in the longer one.
+    const smaller = Math.min(existing.size, discovered.size)
+    if (smaller === 0 || shared < smaller) continue
+    if (!best || distance < best.distance) best = { landmark, distance }
+  }
+  return best?.landmark ?? null
+}
+
+const rateError ={ code: 'rate_limited', message: 'Too many scan requests. Please try again later.' }
 
 export function scanRouter(ctx: AppContext) {
   const router = Router()
@@ -91,15 +139,17 @@ export function scanRouter(ctx: AppContext) {
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '') || `landmark-${Date.now()}`
 
-      const existing = await ctx.store.getLandmark(slug)
+      const latitude = origin?.latitude ?? finiteOr(result.discovered.latitude, 10.3157)
+      const longitude = origin?.longitude ?? finiteOr(result.discovered.longitude, 123.8854)
+      const existing =
+        (await ctx.store.getLandmark(slug)) ??
+        findDuplicate(landmarks, result.discovered.name, { latitude, longitude })
       if (existing) {
         match = existing
       } else {
         const category = (LANDMARK_CATEGORIES as readonly string[]).includes(result.discovered.category)
           ? result.discovered.category
           : 'monument'
-        const latitude = origin?.latitude ?? result.discovered.latitude ?? 10.3157
-        const longitude = origin?.longitude ?? result.discovered.longitude ?? 123.8854
 
         const newLandmark: Landmark = {
           id: slug,
@@ -109,10 +159,11 @@ export function scanRouter(ctx: AppContext) {
           latitude,
           longitude,
           imageUrl: null,
-          admissionFee: Math.max(0, Number(result.discovered.admissionFee ?? 0)),
+          // Gemini can send non-numeric or fractional values; NaN would be stored as null.
+          admissionFee: Math.max(0, Math.round(finiteOr(result.discovered.admissionFee, 0) * 100) / 100),
           rating: 4.5,
           visitCount: 0,
-          estimatedVisitMinutes: Math.max(10, Number(result.discovered.estimatedVisitMinutes ?? 30)),
+          estimatedVisitMinutes: Math.max(10, Math.round(finiteOr(result.discovered.estimatedVisitMinutes, 30))),
           visitingHours: result.discovered.visitingHours?.trim() || 'Open daily',
           story: {
             about: result.discovered.story.about.trim(),
@@ -140,7 +191,7 @@ export function scanRouter(ctx: AppContext) {
 
     const engagement =
       status === 'identified' && match && req.user
-        ? await recordEngagement(ctx.store, req.user.id, match.id, 'scan', { displayName: req.user.displayName })
+        ? await tryRecordEngagement(ctx.store, req.user.id, match.id, 'scan', { displayName: req.user.displayName })
         : null
 
     res.set('Cache-Control', 'no-store')

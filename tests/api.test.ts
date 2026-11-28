@@ -112,7 +112,10 @@ describe('/v1/me', () => {
       await request(app).post('/v1/me/visits').set(auth).send({ landmarkId })
     }
     const repeat = await request(app).post('/v1/me/visits').set(auth).send({ landmarkId: 'casa-gorordo' })
+    expect(repeat.status).toBe(201)
     expect(repeat.body.data.xpAwarded).toBe(0)
+    expect(repeat.body.data.leveledUp).toBe(false)
+    expect(repeat.body.data.newBadges).toEqual([])
 
     const last = await request(app).post('/v1/me/visits').set(auth).send({ landmarkId: 'heritage-of-cebu-monument' })
     expect(last.status).toBe(201)

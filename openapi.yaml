@@ -349,6 +349,10 @@ paths:
       summary: Identify a landmark from a photo (SRS 3.1.1.1-3.1.1.2)
       description: |
         Rate limited to 20 requests per minute per IP. Awards XP when signed in and identified.
+        `progress` is null when signed out, when the scan is not `identified`, or when the
+        XP could not be recorded; the identified landmark is still returned in that case.
+        A landmark Gemini recognizes outside the catalog is saved, unless it matches a nearby
+        catalogued landmark by name, in which case that landmark is returned.
         `status` values: `identified` (confidence >= 0.8 and within 500 m when GPS is sent),
         `low_confidence`, `not_nearby`, `unrecognized`. For the last three, show `candidates`
         (landmarks within 1 km) and retake guidance.
@@ -503,6 +507,9 @@ paths:
       operationId: createVisit
       tags: [progress]
       summary: Manual check-in at a landmark; awards XP once per landmark per day
+      description: |
+        A repeat check-in at a landmark that already earned XP today (PHT) returns 201 with
+        `xpAwarded: 0` and that earlier visit; no new visit is recorded.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true

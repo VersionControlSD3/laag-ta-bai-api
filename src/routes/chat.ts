@@ -5,7 +5,7 @@ import type { AppContext } from '../context.js'
 import { CHAT_MEMORY_MESSAGES } from '../lib/ai.js'
 import { HttpError, notFound } from '../lib/errors.js'
 import { optionalAuth } from '../middleware/auth.js'
-import { recordEngagement } from '../services/progress.js'
+import { tryRecordEngagement } from '../services/progress.js'
 
 const CHAT_MESSAGE_LIMIT = 2_000
 
@@ -46,7 +46,7 @@ export function chatRouter(ctx: AppContext) {
     if (reply.length > CHAT_MESSAGE_LIMIT) {
       reply = reply.slice(0, CHAT_MESSAGE_LIMIT - 1).replace(/\p{Surrogate}$/u, '').trimEnd() + '…'
     }
-    const engagement = req.user ? await recordEngagement(ctx.store, req.user.id, landmark.id, 'chat', { displayName: req.user.displayName }) : null
+    const engagement = req.user ? await tryRecordEngagement(ctx.store, req.user.id, landmark.id, 'chat', { displayName: req.user.displayName }) : null
 
     res.set('Cache-Control', 'no-store')
     res.json({

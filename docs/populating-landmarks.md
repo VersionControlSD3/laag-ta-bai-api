@@ -19,7 +19,7 @@ src/data/seed.ts (Single Source of Truth)
    └─► scripts/generate-seed-sql.ts ──► supabase/seed.sql ──► Supabase Postgres (landmarks table)
 ```
 
-> **Note on AI Recognition:** Gemini does **not** dynamically create or overwrite landmark records. Gemini matches user-submitted camera photos against this fixed catalog. User check-ins and scans are saved to user-specific tables (`visits`, `profiles`), leaving the landmark catalog pristine.
+> **Note on AI Recognition:** Gemini first matches user-submitted photos against this catalog. If it confidently recognizes a Cebu landmark that is not in the catalog, `POST /v1/scan` saves it as a new landmark (with `imageUrl: null`), unless a catalogued landmark within 300 m has a matching name, in which case that landmark is used instead. Review auto-discovered rows periodically and add images or merge duplicates. User check-ins and scans are saved to user-specific tables (`visits`, `profiles`).
 
 ---
 

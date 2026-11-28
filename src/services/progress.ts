@@ -48,11 +48,18 @@ export async function recordEngagement(
   ])
 
   const today = phtDate(now)
-  const alreadyToday = visits.some(
-    (visit) => visit.landmarkId === landmarkId && phtDate(new Date(visit.createdAt)) === today && visit.xpAwarded > 0,
+  const rewardedToday = visits.find(
+    (visit) => visit.landmarkId === landmarkId && visit.xpAwarded > 0 && phtDate(new Date(visit.createdAt)) === today,
   )
-  const xpAwarded = alreadyToday ? 0 : XP_PER_ENGAGEMENT
 
+  // A same-day repeat earns nothing and changes nothing, so reuse the rewarded
+  // visit instead of inserting a duplicate row (which would also inflate the
+  // landmark's visit_count).
+  if (rewardedToday) {
+    return { visit: rewardedToday, xpAwarded: 0, profile, rank: rankFor(profile.xp), leveledUp: false, newBadges: [] }
+  }
+
+  const xpAwarded = XP_PER_ENGAGEMENT
   const before = questProgress(quests, visits)
   const visit = await store.addVisit({ userId, landmarkId, source, xpAwarded })
   const after = questProgress(quests, [...visits, visit])
@@ -67,4 +74,20 @@ export async function recordEngagement(
     .map((quest) => quest.badgeName)
 
   return { visit, xpAwarded, profile: updated, rank, leveledUp: rank.level > previousRank.level, newBadges }
+}
+
+/**
+ * For engagements that ride along with another result (a scan match, a chat
+ * reply): a failed XP write is logged and reported as no progress, so the
+ * traveler still gets their story or answer.
+ */
+export async function tryRecordEngagement(
+  ...args: Parameters<typeof recordEngagement>
+): Promise<EngagementResult | null> {
+  try {
+    return await recordEngagement(...args)
+  } catch (err) {
+    console.error(`Failed to record ${args[3]} engagement for landmark ${args[2]}:`, err)
+    return null
+  }
 }

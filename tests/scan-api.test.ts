@@ -422,4 +422,92 @@ describe('POST /v1/scan - Scan-to-Story API', () => {
       expect(res.body.data.landmark).toBeNull()
     })
   })
+
+  describe('Regression: staging 500s on authenticated scans (#50)', () => {
+    const story = {
+      about: 'About.',
+      significance: 'Significance.',
+      architecture: 'Architecture.',
+      trivia: 'Trivia.',
+    }
+
+    it('still returns the identified landmark when recording XP fails', async () => {
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({ landmarkId: 'magellans-cross', confidence: 0.95 })
+      vi.spyOn(ctx.store, 'addVisit').mockRejectedValue(new Error('Supabase query failed: duplicate key'))
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const res = await request(app)
+        .post('/v1/scan')
+        .set(auth)
+        .field('lat', AT_MAGELLAN.lat)
+        .field('lng', AT_MAGELLAN.lng)
+        .attach('image', PNG_IMAGE, { filename: 'photo.png', contentType: 'image/png' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.data.status).toBe('identified')
+      expect(res.body.data.landmark.id).toBe('magellans-cross')
+      expect(res.body.data.progress).toBeNull()
+    })
+
+    it('does not insert a duplicate visit for a same-day repeat scan', async () => {
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({ landmarkId: 'magellans-cross', confidence: 0.95 })
+      const addVisit = vi.spyOn(ctx.store, 'addVisit')
+      for (let i = 0; i < 2; i++) {
+        await request(app)
+          .post('/v1/scan')
+          .set(auth)
+          .field('lat', AT_MAGELLAN.lat)
+          .field('lng', AT_MAGELLAN.lng)
+          .attach('image', PNG_IMAGE, { filename: 'photo.png', contentType: 'image/png' })
+      }
+      expect(addVisit).toHaveBeenCalledTimes(1)
+      expect((await ctx.store.getLandmark('magellans-cross'))?.visitCount).toBe(1)
+    })
+
+    it('matches a discovered landmark to a nearby catalogued one instead of saving a duplicate', async () => {
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({
+        landmarkId: null,
+        confidence: 0.92,
+        discovered: { name: "Magellan's Cross Kiosk", category: 'monument', district: 'Cebu City', story },
+      })
+      const saveLandmark = vi.spyOn(ctx.store, 'saveLandmark')
+
+      const res = await request(app)
+        .post('/v1/scan')
+        .set(auth)
+        .field('lat', AT_MAGELLAN.lat)
+        .field('lng', AT_MAGELLAN.lng)
+        .attach('image', PNG_IMAGE, { filename: 'photo.png', contentType: 'image/png' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.data.status).toBe('identified')
+      expect(res.body.data.landmark.id).toBe('magellans-cross')
+      expect(saveLandmark).not.toHaveBeenCalled()
+    })
+
+    it('stores safe numbers when Gemini returns non-numeric or fractional details', async () => {
+      vi.spyOn(ctx.ai, 'identifyLandmark').mockResolvedValue({
+        landmarkId: null,
+        confidence: 0.9,
+        discovered: {
+          name: 'Cebu Provincial Capitol',
+          category: 'monument',
+          district: 'Capitol Site, Cebu City',
+          admissionFee: 'free' as unknown as number,
+          estimatedVisitMinutes: 37.6,
+          story,
+        },
+      })
+
+      const res = await request(app)
+        .post('/v1/scan')
+        .set(auth)
+        .field('lat', '10.3168')
+        .field('lng', '123.8907')
+        .attach('image', PNG_IMAGE, { filename: 'capitol.png', contentType: 'image/png' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.data.landmark).toMatchObject({ admissionFee: 0, estimatedVisitMinutes: 38 })
+    })
+  })
 })
